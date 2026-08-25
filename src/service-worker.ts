@@ -1,0 +1,5 @@
+chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.storage.local.setAccessLevel({
+    accessLevel: "TRUSTED_CONTEXTS",
+  });
+});
