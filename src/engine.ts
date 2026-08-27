@@ -491,20 +491,27 @@ export async function testGemini(model = DEFAULT_MODEL, candidateKey?: string) {
   if (!key) throw new Error("Enter an API key first.");
   if (!/^[a-zA-Z0-9._-]+$/.test(model))
     throw new Error("Invalid model identifier.");
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }],
-        generationConfig: {
-          maxOutputTokens: 16,
-          thinkingConfig: { thinkingLevel: "low", includeThoughts: false },
-        },
-      }),
-    },
-  );
+  let r: Response | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }],
+          generationConfig: {
+            maxOutputTokens: 16,
+            thinkingConfig: { thinkingLevel: "low", includeThoughts: false },
+          },
+        }),
+      },
+    );
+    if (r.ok || ![502, 503, 504].includes(r.status)) break;
+    if (attempt < 2)
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+  }
+  if (!r) throw new Error("Gemini verification did not start.");
   if (!r.ok) {
     const reason =
       r.status === 400
@@ -513,9 +520,11 @@ export async function testGemini(model = DEFAULT_MODEL, candidateKey?: string) {
           ? "The key is invalid, blocked, or not permitted to use Gemini."
           : r.status === 429
             ? "The key has reached its quota or rate limit."
-            : r.status >= 500
-              ? "Google Gemini is temporarily unavailable."
-              : "Check the key, model, quota, and billing settings.";
+            : [502, 503, 504].includes(r.status)
+              ? "Google Gemini remained temporarily unavailable after three attempts. No key was changed; wait briefly and retry."
+              : r.status >= 500
+                ? "Google Gemini returned a server error. No key was changed."
+                : "Check the key, model, quota, and billing settings.";
     throw new Error(`Gemini verification failed (${r.status}). ${reason}`);
   }
   return true;

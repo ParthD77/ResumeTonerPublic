@@ -135,4 +135,16 @@ describe("deterministic technical engine", () => {
       testGemini("gemini-3.7-flash", "candidate-key-with-enough-characters"),
     ).rejects.toThrow("invalid, blocked, or not permitted");
   });
+  it("retries temporary Gemini failures before succeeding", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      testGemini("gemini-3.7-flash", "candidate-key-with-enough-characters"),
+    ).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });
