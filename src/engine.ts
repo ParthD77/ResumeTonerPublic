@@ -486,16 +486,38 @@ async function geminiJson<T>(
   return result.data;
 }
 
-export async function testGemini(model = DEFAULT_MODEL) {
-  const key = await getGeminiKey();
+export async function testGemini(model = DEFAULT_MODEL, candidateKey?: string) {
+  const key = candidateKey?.trim() || (await getGeminiKey());
   if (!key) throw new Error("Enter an API key first.");
   if (!/^[a-zA-Z0-9._-]+$/.test(model))
     throw new Error("Invalid model identifier.");
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}`,
-    { headers: { "x-goog-api-key": key } },
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }],
+        generationConfig: {
+          maxOutputTokens: 16,
+          thinkingConfig: { thinkingLevel: "low", includeThoughts: false },
+        },
+      }),
+    },
   );
-  if (!r.ok) throw new Error(`Gemini connection failed (${r.status}).`);
+  if (!r.ok) {
+    const reason =
+      r.status === 400
+        ? "The model or request is not available for this key."
+        : r.status === 401 || r.status === 403
+          ? "The key is invalid, blocked, or not permitted to use Gemini."
+          : r.status === 429
+            ? "The key has reached its quota or rate limit."
+            : r.status >= 500
+              ? "Google Gemini is temporarily unavailable."
+              : "Check the key, model, quota, and billing settings.";
+    throw new Error(`Gemini verification failed (${r.status}). ${reason}`);
+  }
   return true;
 }
 

@@ -47,6 +47,23 @@ export async function saveImport(
     await db.evidence.bulkPut(evidence);
   });
 }
+export async function getLocalDataSummary() {
+  const [profiles, evidence, runs, applications, settings] = await Promise.all([
+    db.profiles.toArray(),
+    db.evidence.toArray(),
+    db.runs.toArray(),
+    db.applications.toArray(),
+    db.settings.toArray(),
+  ]);
+  const value = { profiles, evidence, runs, applications, settings };
+  return {
+    bytes: new TextEncoder().encode(JSON.stringify(value)).byteLength,
+    profiles: profiles.length,
+    evidence: evidence.length,
+    runs: runs.length,
+    applications: applications.length,
+  };
+}
 export async function exportBackup() {
   return BackupEnvelopeSchema.parse({
     schemaVersion: 1,

@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyProposals,
   deterministicJob,
   deterministicRequirements,
   recalculateRun,
   scoreResume,
+  testGemini,
 } from "./engine";
 import { fictionalImport } from "./sample";
 import type { JobCapture, TailoringRun } from "./domain";
@@ -20,6 +21,7 @@ const capture: JobCapture = {
     "Required: TypeScript, PostgreSQL, REST APIs, Git, and Docker. Preferred: React and CI/CD. Build scalable APIs and write integration tests.",
 };
 describe("deterministic technical engine", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("canonicalizes requirements and marks required context", () => {
     const requirements = deterministicRequirements(capture.description);
     expect(
@@ -112,5 +114,25 @@ describe("deterministic technical engine", () => {
     const next = recalculateRun(run);
     expect(next.status).toBe("ready");
     expect(next.proposedScore.covered).toContain("CI/CD");
+  });
+  it("verifies a candidate key with a real generation request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      testGemini("gemini-3.7-flash", "candidate-key-with-enough-characters"),
+    ).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(":generateContent"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+  it("reports invalid or unauthorized candidate keys", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 403 }),
+    );
+    await expect(
+      testGemini("gemini-3.7-flash", "candidate-key-with-enough-characters"),
+    ).rejects.toThrow("invalid, blocked, or not permitted");
   });
 });

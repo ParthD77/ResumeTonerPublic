@@ -4,6 +4,7 @@ import {
   db,
   deleteAllData,
   exportBackup,
+  getLocalDataSummary,
   getSettings,
   restoreBackup,
   saveImport,
@@ -60,19 +61,21 @@ export function Options() {
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    const [nextSettings, nextProfile, nextEvidence, savedKey, estimate] =
+    const [nextSettings, nextProfile, nextEvidence, savedKey, summary] =
       await Promise.all([
         getSettings(),
         db.profiles.toCollection().first(),
         db.evidence.toArray(),
         getGeminiKey(),
-        navigator.storage.estimate(),
+        getLocalDataSummary(),
       ]);
     setSettings(nextSettings);
     setProfile(nextProfile ?? null);
     setEvidence(nextEvidence);
     setHasKey(Boolean(savedKey));
-    setStorage(`${((estimate.usage ?? 0) / 1024 / 1024).toFixed(2)} MB used`);
+    setStorage(
+      `${(summary.bytes / 1024).toFixed(1)} KB of Resume Toner data · ${summary.profiles} base resume · ${summary.runs} tailoring runs · ${summary.applications} saved applications`,
+    );
   };
   useEffect(() => void refresh(), []);
   const act = async (work: () => Promise<void>) => {
@@ -93,15 +96,18 @@ export function Options() {
   };
   const verifyKey = () =>
     act(async () => {
-      if (key.trim()) await setGeminiKey(key.trim());
-      if (!key.trim() && !hasKey)
-        throw new Error("Paste a Gemini API key first.");
-      await testGemini(settings?.modelOverride || DEFAULT_MODEL);
+      const candidate = key.trim();
+      if (!candidate)
+        throw new Error("Paste the Gemini key you want to verify.");
+      await testGemini(settings?.modelOverride || DEFAULT_MODEL, candidate);
+      await setGeminiKey(candidate);
+      if ((await getGeminiKey()) !== candidate)
+        throw new Error("Chrome did not persist the verified key. Try again.");
       setKey("");
       setHasKey(true);
       setKeyVerified(true);
       setMessage(
-        "Connection verified. Your key is stored only in this Chrome profile.",
+        "A live Gemini request succeeded. The verified key is now saved in this Chrome profile.",
       );
     });
   const importResume = () =>
@@ -264,11 +270,8 @@ export function Options() {
               </label>
             </details>
             <div className="actions">
-              <button
-                disabled={busy || (!key.trim() && !hasKey)}
-                onClick={verifyKey}
-              >
-                {hasKey ? "Test saved key" : "Save and test key"}
+              <button disabled={busy || !key.trim()} onClick={verifyKey}>
+                {hasKey ? "Verify and replace key" : "Verify and save key"}
               </button>
               <button
                 className="secondary"
@@ -413,7 +416,7 @@ export function Options() {
                 <strong>Paste the prompt below</strong>
                 <span>
                   Send it with the resume, then copy the complete JSON response
-                  without markdown fences.
+                  including the JSON code block.
                 </span>
               </li>
             </ol>
@@ -475,7 +478,7 @@ export function Options() {
                 value={importText}
                 onChange={(event) => setImportText(event.target.value)}
                 placeholder={
-                  "Paste one complete JSON object here, starting with { and ending with }"
+                  "Paste the complete response or JSON code block here"
                 }
               />
             </label>
@@ -554,11 +557,8 @@ export function Options() {
             />
           </label>
           <div className="actions">
-            <button
-              disabled={busy || (!key.trim() && !hasKey)}
-              onClick={verifyKey}
-            >
-              {hasKey ? "Test or replace key" : "Save and test"}
+            <button disabled={busy || !key.trim()} onClick={verifyKey}>
+              {hasKey ? "Verify and replace key" : "Verify and save key"}
             </button>
             <button
               className="secondary"
@@ -617,8 +617,10 @@ export function Options() {
       <section className="panel">
         <h2>Local data and backup</h2>
         <p>
-          {storage}. Structured history remains on this device until deletion.
-          Chrome removes extension storage when the extension is uninstalled.
+          {storage}. This is the serialized size of your actual records, not
+          Chrome's larger internal database allocation. Saving the base resume
+          replaces the existing base profile. Chrome removes extension storage
+          when the extension is uninstalled.
         </p>
         <div className="actions">
           <button className="secondary" onClick={backup}>

@@ -15,4 +15,13 @@ describe("local backup", () => {
     await restoreBackup(backup);
     expect((await db.profiles.toArray())[0].name).toBe("Jordan Lee");
   });
+  it("replaces the base profile instead of accumulating copies", async () => {
+    await saveImport(fictionalImport.profile, fictionalImport.evidence);
+    await saveImport(
+      { ...fictionalImport.profile, name: "Jordan Updated" },
+      fictionalImport.evidence,
+    );
+    expect(await db.profiles.count()).toBe(1);
+    expect((await db.profiles.toArray())[0].name).toBe("Jordan Updated");
+  });
 });
