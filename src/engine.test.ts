@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyProposals,
+  DEFAULT_MODEL,
   deterministicJob,
   deterministicRequirements,
   recalculateRun,
@@ -22,6 +23,9 @@ const capture: JobCapture = {
 };
 describe("deterministic technical engine", () => {
   afterEach(() => vi.unstubAllGlobals());
+  it("uses the high-throughput stable model by default", () => {
+    expect(DEFAULT_MODEL).toBe("gemini-3.5-flash-lite");
+  });
   it("canonicalizes requirements and marks required context", () => {
     const requirements = deterministicRequirements(capture.description);
     expect(

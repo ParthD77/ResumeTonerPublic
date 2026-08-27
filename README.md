@@ -8,7 +8,7 @@ There is no Resume Toner account, hosted application backend, telemetry, or shar
 
 - Chrome desktop and Manifest V3
 - English software and technical roles
-- Gemini BYOK (`gemini-3.7-flash` by default)
+- Gemini BYOK (`gemini-3.5-flash-lite` by default)
 - Evidence-only, conservative extrapolation, and gated diagnostic stress modes
 - One ATS-friendly US Letter template with one- or two-page targets
 - Local history, versioned JSON backup, and direct PDF export
@@ -41,4 +41,3 @@ Read [Privacy](docs/PRIVACY.md), [Security](SECURITY.md), and [Terms](docs/TERMS
 ## Licence
 
 Source code is available under the Mozilla Public License 2.0. See [LICENSE](LICENSE).
-
