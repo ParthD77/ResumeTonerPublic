@@ -17,6 +17,7 @@ import {
 } from "../domain";
 import { DEFAULT_MODEL, testGemini } from "../engine";
 import { forgetGeminiKey, getGeminiKey, setGeminiKey } from "../key-store";
+import { parseResumeImport } from "../import-compat";
 import { downloadBlob } from "../pdf";
 import { ResumeEditor } from "../resume-editor";
 import { fictionalImport, RESUME_IMPORT_PROMPT } from "../sample";
@@ -105,7 +106,7 @@ export function Options() {
     });
   const importResume = () =>
     act(async () => {
-      const parsed = ResumeImportSchema.parse(JSON.parse(importText));
+      const parsed = parseResumeImport(importText);
       await saveImport(parsed.profile, parsed.evidence);
       if (settings)
         await saveSettings({ ...settings, onboardingCompletedAt: nowIso() });
