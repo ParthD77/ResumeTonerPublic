@@ -249,11 +249,12 @@ export function App() {
         <section className="panel empty-state">
           <h2>Set up your base resume</h2>
           <p>
-            Import AI-structured JSON, review your details, and add your own
-            Gemini key. Nothing is sent to Resume Toner.
+            A guided, four-step setup explains your Gemini key, privacy and
+            responsibilities before helping you prepare and import your career
+            information. Resume Toner has no hosted backend.
           </p>
-          <a className="button" href="options.html">
-            Open onboarding
+          <a className="button" href="options.html?onboarding=1">
+            Start guided setup
           </a>
         </section>
       </main>

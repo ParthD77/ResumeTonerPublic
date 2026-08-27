@@ -159,6 +159,8 @@ export const ApplicationRecordSchema = z.object({
 export const UserSettingsSchema = z.object({
   id: z.literal("settings"),
   consentVersion: z.number().int().min(0).default(0),
+  termsVersion: z.number().int().min(0).default(0),
+  onboardingCompletedAt: z.string().datetime().optional(),
   pageTarget: z.union([z.literal(1), z.literal(2)]).default(1),
   modelOverride: z.string().max(200).default(""),
   stressAcknowledged: z.boolean().default(false),

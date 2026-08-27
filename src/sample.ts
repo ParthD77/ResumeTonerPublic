@@ -103,11 +103,13 @@ export const fictionalImport: ResumeImport = {
     },
   ],
 };
-export const RESUME_IMPORT_PROMPT = `You are converting my resume and career notes into Resume Toner JSON.
-Return JSON only. Do not invent, infer, improve, or embellish facts. Preserve exact employers, roles, dates, technologies, responsibilities, and metrics. Give every profile, entry, bullet, education item, and evidence record a stable unique id. Link each bullet to one or more evidenceIds. Use schemaVersion 1 and ISO timestamps.
+export const RESUME_IMPORT_PROMPT = `I am setting up Resume Toner. Convert the resume attached to this chat into the JSON format below.
+
+Use the attached resume as the primary source. You may also use relevant career facts from memory or earlier chats only if I have explicitly enabled that feature and asked you to use it. Omit anything uncertain, outdated, contradictory, sensitive, or not clearly about my own career. Never invent, infer, improve, or embellish facts. Preserve exact employers, roles, dates, technologies, responsibilities, and metrics.
+
+Return one complete JSON object only: no markdown fences, commentary, or follow-up questions. Give every profile, entry, bullet, education item, and evidence record a stable unique id. Link each bullet to one or more evidenceIds. In each evidence record, name the real source, such as "Attached resume" or "User-confirmed career note". Use schemaVersion 1 and ISO timestamps.
 
 Required top-level shape:
 {"schemaVersion":1,"profile":{"schemaVersion":1,"id":"profile.base","label":"Base resume","name":"","email":"","phone":"","location":"","links":[{"label":"","url":"https://..."}],"education":[{"id":"education.1","institution":"","credential":"","dates":"","location":""}],"experience":[{"id":"experience.1","organization":"","title":"","dates":"","location":"","url":"","technologies":[],"locked":false,"bullets":[{"id":"experience.1.b1","text":"","factuality":"verified","locked":false,"evidenceIds":["evidence.1"]}]}],"projects":[],"skills":{"Languages":[],"Frameworks":[],"Tools":[]},"createdAt":"ISO timestamp","updatedAt":"ISO timestamp"},"evidence":[{"id":"evidence.1","entryId":"experience.1","source":"User-provided resume","facts":[],"technologies":[],"metrics":[{"value":"","meaning":""}],"trusted":true}]}
 
-Here is my resume and additional career information:
-[PASTE YOUR INFORMATION HERE]`;
+Before producing the JSON, silently exclude passwords, API keys, government identification numbers, banking information, health information, references' private contact details, and any fact you cannot verify from the sources above.`;

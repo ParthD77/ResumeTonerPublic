@@ -22,8 +22,9 @@ test("loads the packaged onboarding page in Chrome", async () => {
       page.getByRole("heading", { name: "Resume Toner" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Gemini BYOK" }),
+      page.getByRole("heading", { name: "Connect your Gemini key" }),
     ).toBeVisible();
+    await expect(page.getByText("Step 1 of 4")).toBeVisible();
   } finally {
     await context.close();
   }

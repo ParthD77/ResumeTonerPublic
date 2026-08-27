@@ -10,62 +10,78 @@ import {
 } from "../db";
 import {
   ResumeImportSchema,
+  nowIso,
   type CareerEvidence,
   type ResumeProfile,
   type UserSettings,
 } from "../domain";
 import { DEFAULT_MODEL, testGemini } from "../engine";
 import { forgetGeminiKey, getGeminiKey, setGeminiKey } from "../key-store";
+import { downloadBlob } from "../pdf";
 import { ResumeEditor } from "../resume-editor";
 import { fictionalImport, RESUME_IMPORT_PROMPT } from "../sample";
-import { downloadBlob } from "../pdf";
 import "../styles.css";
+import "./onboarding.css";
 
-const issueText = (e: unknown) =>
-  e instanceof ZodError
-    ? e.issues
-        .map((i) => `${i.path.join(".") || "document"}: ${i.message}`)
+const TERMS_VERSION = 1;
+const steps = [
+  "Gemini key",
+  "Your responsibilities",
+  "Prepare with AI",
+  "Import JSON",
+];
+const issueText = (error: unknown) =>
+  error instanceof ZodError
+    ? error.issues
+        .map(
+          (issue) => `${issue.path.join(".") || "document"}: ${issue.message}`,
+        )
         .join("\n")
-    : e instanceof Error
-      ? e.message
-      : String(e);
+    : error instanceof SyntaxError
+      ? "That is not valid JSON. Copy the complete object, including its opening and closing braces."
+      : error instanceof Error
+        ? error.message
+        : String(error);
 
 export function Options() {
-  const [settings, setSettings] = useState<UserSettings | null>(null),
-    [profile, setProfile] = useState<ResumeProfile | null>(null),
-    [evidence, setEvidence] = useState<CareerEvidence[]>([]),
-    [key, setKey] = useState(""),
-    [hasKey, setHasKey] = useState(false),
-    [importText, setImportText] = useState(""),
-    [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
-    [storage, setStorage] = useState("Calculating…"),
-    [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [profile, setProfile] = useState<ResumeProfile | null>(null);
+  const [evidence, setEvidence] = useState<CareerEvidence[]>([]);
+  const [key, setKey] = useState("");
+  const [hasKey, setHasKey] = useState(false);
+  const [keyVerified, setKeyVerified] = useState(false);
+  const [step, setStep] = useState(0);
+  const [checks, setChecks] = useState([false, false, false]);
+  const [importText, setImportText] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [storage, setStorage] = useState("Calculating…");
+  const [busy, setBusy] = useState(false);
+
   const refresh = async () => {
-    const [s, p, e, k, estimate] = await Promise.all([
-      getSettings(),
-      db.profiles.toCollection().first(),
-      db.evidence.toArray(),
-      getGeminiKey(),
-      navigator.storage.estimate(),
-    ]);
-    setSettings(s);
-    setProfile(p ?? null);
-    setEvidence(e);
-    setHasKey(Boolean(k));
+    const [nextSettings, nextProfile, nextEvidence, savedKey, estimate] =
+      await Promise.all([
+        getSettings(),
+        db.profiles.toCollection().first(),
+        db.evidence.toArray(),
+        getGeminiKey(),
+        navigator.storage.estimate(),
+      ]);
+    setSettings(nextSettings);
+    setProfile(nextProfile ?? null);
+    setEvidence(nextEvidence);
+    setHasKey(Boolean(savedKey));
     setStorage(`${((estimate.usage ?? 0) / 1024 / 1024).toFixed(2)} MB used`);
   };
-  useEffect(() => {
-    void refresh();
-  }, []);
-  const act = async (fn: () => Promise<void>) => {
+  useEffect(() => void refresh(), []);
+  const act = async (work: () => Promise<void>) => {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await fn();
-    } catch (e) {
-      setError(issueText(e));
+      await work();
+    } catch (caught) {
+      setError(issueText(caught));
     } finally {
       setBusy(false);
     }
@@ -74,33 +90,43 @@ export function Options() {
     setSettings(next);
     await db.settings.put(next);
   };
+  const verifyKey = () =>
+    act(async () => {
+      if (key.trim()) await setGeminiKey(key.trim());
+      if (!key.trim() && !hasKey)
+        throw new Error("Paste a Gemini API key first.");
+      await testGemini(settings?.modelOverride || DEFAULT_MODEL);
+      setKey("");
+      setHasKey(true);
+      setKeyVerified(true);
+      setMessage(
+        "Connection verified. Your key is stored only in this Chrome profile.",
+      );
+    });
   const importResume = () =>
     act(async () => {
       const parsed = ResumeImportSchema.parse(JSON.parse(importText));
       await saveImport(parsed.profile, parsed.evidence);
+      if (settings)
+        await saveSettings({ ...settings, onboardingCompletedAt: nowIso() });
       setProfile(parsed.profile);
       setEvidence(parsed.evidence);
-      setMessage("Resume imported and saved locally.");
+      setMessage(
+        "Setup complete. Your resume data was validated and saved locally.",
+      );
       await refresh();
     });
   const saveProfile = () =>
     act(async () => {
       if (!profile) return;
-      await saveImport(
-        ResumeImportSchema.parse({ schemaVersion: 1, profile, evidence })
-          .profile,
+      const parsed = ResumeImportSchema.parse({
+        schemaVersion: 1,
+        profile,
         evidence,
-      );
+      });
+      await saveImport(parsed.profile, evidence);
       setMessage("Base resume saved locally.");
       await refresh();
-    });
-  const saveKey = () =>
-    act(async () => {
-      await setGeminiKey(key);
-      await testGemini(settings?.modelOverride || DEFAULT_MODEL);
-      setKey("");
-      setHasKey(true);
-      setMessage("Gemini key saved locally and connection verified.");
     });
   const backup = () =>
     act(async () => {
@@ -118,12 +144,376 @@ export function Options() {
       setMessage("Backup restored.");
       await refresh();
     });
+
   if (!settings)
     return (
       <main className="shell">
         <p>Loading local settings…</p>
       </main>
     );
+  if (!profile)
+    return (
+      <main className="shell onboarding-shell">
+        <header className="onboarding-header">
+          <div>
+            <p className="eyebrow">PRIVATE, LOCAL-FIRST SETUP</p>
+            <h1>Set up Resume Toner</h1>
+            <p>
+              Bring your own Gemini key, prepare your career record, then review
+              it before tailoring.
+            </p>
+          </div>
+          <a className="button secondary" href="app.html">
+            Back to workspace
+          </a>
+        </header>
+        <nav className="stepper" aria-label="Onboarding progress">
+          {steps.map((label, index) => (
+            <div
+              key={label}
+              className={
+                index === step
+                  ? "step active"
+                  : index < step
+                    ? "step done"
+                    : "step"
+              }
+              aria-current={index === step ? "step" : undefined}
+            >
+              <span>{index < step ? "✓" : index + 1}</span>
+              <small>{label}</small>
+            </div>
+          ))}
+        </nav>
+        <p className="step-count">Step {step + 1} of 4</p>
+        {error && (
+          <pre className="error" role="alert">
+            {error}
+          </pre>
+        )}
+        {message && (
+          <p className="success" role="status">
+            {message}
+          </p>
+        )}
+
+        {step === 0 && (
+          <section className="panel onboarding-card">
+            <p className="eyebrow">BRING YOUR OWN KEY</p>
+            <h2>Connect your Gemini key</h2>
+            <p className="lede">
+              Resume Toner has no account or hosted backend. Gemini requests go
+              directly from this extension to Google and use your Google
+              project’s quota.
+            </p>
+            <div className="notice-grid">
+              <div>
+                <strong>Stored on this device</strong>
+                <p>
+                  The key stays in Chrome extension storage, never syncs, and is
+                  excluded from backups. Chrome storage is not encrypted.
+                </p>
+              </div>
+              <div>
+                <strong>You control cost</strong>
+                <p>
+                  Google may apply quotas or charges. Use a dedicated key,
+                  restrict it to Gemini, and set billing alerts.
+                </p>
+              </div>
+              <div>
+                <strong>Treat it like a password</strong>
+                <p>
+                  Someone with access to your unlocked Chrome profile may
+                  recover it. Revoke it in Google if exposed.
+                </p>
+              </div>
+            </div>
+            <label>
+              Gemini API key
+              <input
+                type="password"
+                autoComplete="off"
+                value={key}
+                placeholder={
+                  hasKey
+                    ? "Saved key — test it or enter a replacement"
+                    : "Paste a dedicated Gemini key"
+                }
+                onChange={(event) => {
+                  setKey(event.target.value);
+                  setKeyVerified(false);
+                }}
+              />
+            </label>
+            <details>
+              <summary>Advanced: use a different model</summary>
+              <label>
+                Model ID
+                <input
+                  value={settings.modelOverride}
+                  placeholder={DEFAULT_MODEL}
+                  onChange={(event) =>
+                    void saveSettings({
+                      ...settings,
+                      modelOverride: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            </details>
+            <div className="actions">
+              <button
+                disabled={busy || (!key.trim() && !hasKey)}
+                onClick={verifyKey}
+              >
+                {hasKey ? "Test saved key" : "Save and test key"}
+              </button>
+              <button
+                className="secondary"
+                disabled={!keyVerified}
+                onClick={() => {
+                  setMessage("");
+                  setStep(1);
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === 1 && (
+          <section className="panel onboarding-card">
+            <p className="eyebrow">TERMS & RESPONSIBILITIES</p>
+            <h2>Know what you are responsible for</h2>
+            <p className="lede">
+              Resume Toner is an editing aid provided “as is.” It cannot verify
+              every claim, guarantee interviews, predict an employer’s ATS, or
+              control Google or another AI service.
+            </p>
+            <div className="terms-summary">
+              <p>
+                <strong>You remain the author.</strong> Review every imported
+                fact, suggestion, score, and exported resume.
+              </p>
+              <p>
+                <strong>You choose the services.</strong> You are responsible
+                for your API key, Google account, usage charges, and any
+                separate AI assistant.
+              </p>
+              <p>
+                <strong>Your data choices matter.</strong> Analyze and Compact
+                send your full resume and job listing directly to Google. Local
+                records stay in Chrome until deletion or uninstall.
+              </p>
+            </div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={checks[0]}
+                onChange={(e) =>
+                  setChecks([e.target.checked, checks[1], checks[2]])
+                }
+              />
+              I will verify that every resume claim is truthful and appropriate
+              before I use or export it.
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={checks[1]}
+                onChange={(e) =>
+                  setChecks([checks[0], e.target.checked, checks[2]])
+                }
+              />
+              I understand my full resume and job listing are sent directly to
+              Google only when I choose Analyze or Compact.
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={checks[2]}
+                onChange={(e) =>
+                  setChecks([checks[0], checks[1], e.target.checked])
+                }
+              />
+              I accept responsibility for my key, provider terms, quota or
+              charges, and use of generated output.
+            </label>
+            <details className="legal-details">
+              <summary>Read the concise terms</summary>
+              <p>
+                Use is at your own risk and subject to applicable law. The
+                software is provided without warranties under the MPL-2.0.
+                Nothing here is legal, hiring, or financial advice. These terms
+                do not exclude rights or liabilities that cannot legally be
+                excluded.
+              </p>
+            </details>
+            <div className="actions split-actions">
+              <button className="secondary" onClick={() => setStep(0)}>
+                Back
+              </button>
+              <button
+                disabled={busy || !checks.every(Boolean)}
+                onClick={() =>
+                  void act(async () => {
+                    await saveSettings({
+                      ...settings,
+                      termsVersion: TERMS_VERSION,
+                      consentVersion: 1,
+                    });
+                    setMessage("");
+                    setStep(2);
+                  })
+                }
+              >
+                Accept and continue
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === 2 && (
+          <section className="panel onboarding-card">
+            <p className="eyebrow">PREPARE YOUR CAREER RECORD</p>
+            <h2>Ask an AI assistant to structure your information</h2>
+            <p className="lede">
+              This optional helper step happens outside Resume Toner. Choose an
+              assistant you trust; its own privacy policy and data controls
+              apply.
+            </p>
+            <ol className="instruction-list">
+              <li>
+                <strong>Open a new chat</strong>
+                <span>
+                  Use any assistant that can read an attached resume and return
+                  JSON.
+                </span>
+              </li>
+              <li>
+                <strong>Attach your current resume</strong>
+                <span>
+                  Remove anything you do not want that provider to process.
+                  Never share passwords, API keys, government IDs, banking or
+                  health information.
+                </span>
+              </li>
+              <li>
+                <strong>Decide whether to use memory or chat history</strong>
+                <span>
+                  Optional: if supported and you are comfortable, ask it to use
+                  relevant career context. Memory can be wrong or outdated;
+                  uncertain or conflicting facts must be omitted.
+                </span>
+              </li>
+              <li>
+                <strong>Paste the prompt below</strong>
+                <span>
+                  Send it with the resume, then copy the complete JSON response
+                  without markdown fences.
+                </span>
+              </li>
+            </ol>
+            <div className="memory-warning">
+              <strong>Before using AI memory:</strong> check its memory/history
+              settings and remove irrelevant or sensitive memories. You can skip
+              memory and use only your resume.
+            </div>
+            <textarea
+              className="prompt"
+              readOnly
+              value={RESUME_IMPORT_PROMPT}
+              aria-label="Resume structuring prompt"
+            />
+            <div className="actions split-actions">
+              <button className="secondary" onClick={() => setStep(1)}>
+                Back
+              </button>
+              <div className="actions">
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(RESUME_IMPORT_PROMPT)
+                      .then(() =>
+                        setMessage(
+                          "Prompt copied. Paste it into the AI chat with your resume attached.",
+                        ),
+                      )
+                  }
+                >
+                  Copy prompt
+                </button>
+                <button
+                  onClick={() => {
+                    setMessage("");
+                    setStep(3);
+                  }}
+                >
+                  I have the JSON
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {step === 3 && (
+          <section className="panel onboarding-card">
+            <p className="eyebrow">VALIDATE BEFORE SAVING</p>
+            <h2>Import your JSON</h2>
+            <p className="lede">
+              Paste the complete response. Resume Toner validates every field
+              first and saves nothing if any part is invalid.
+            </p>
+            <label>
+              Resume Toner JSON
+              <textarea
+                rows={16}
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                placeholder={
+                  "Paste one complete JSON object here, starting with { and ending with }"
+                }
+              />
+            </label>
+            <p className="muted">
+              After import, review contact details, dates, employers,
+              technologies, and metrics. Imported information is treated as
+              trusted evidence.
+            </p>
+            <div className="actions split-actions">
+              <button className="secondary" onClick={() => setStep(2)}>
+                Back
+              </button>
+              <div className="actions">
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setImportText(JSON.stringify(fictionalImport, null, 2));
+                    setError("");
+                  }}
+                >
+                  Try fictional example
+                </button>
+                <button
+                  disabled={busy || !importText.trim()}
+                  onClick={importResume}
+                >
+                  Validate and import
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+        <p className="onboarding-footnote">
+          Nothing is sent to Resume Toner. Delete local data and forget your key
+          at any time in Settings.
+        </p>
+      </main>
+    );
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -145,9 +535,8 @@ export function Options() {
         <section className="panel">
           <h2>Gemini BYOK</h2>
           <p>
-            Your key stays in this Chrome profile. It is never synced or
-            included in backups. Anyone with access to your unlocked browser
-            profile may be able to recover it.
+            Your key stays in this Chrome profile, never syncs, and is excluded
+            from backups. Extension storage is not encrypted.
           </p>
           <label>
             Gemini API key
@@ -160,33 +549,24 @@ export function Options() {
                   ? "Key saved — enter a replacement"
                   : "Paste a dedicated Gemini key"
               }
-              onChange={(e) => setKey(e.target.value)}
-            />
-          </label>
-          <label>
-            Advanced model override
-            <input
-              value={settings.modelOverride}
-              placeholder={DEFAULT_MODEL}
-              onChange={(e) =>
-                void saveSettings({
-                  ...settings,
-                  modelOverride: e.target.value,
-                })
-              }
+              onChange={(event) => setKey(event.target.value)}
             />
           </label>
           <div className="actions">
-            <button disabled={busy || !key.trim()} onClick={saveKey}>
-              {hasKey ? "Replace and test" : "Save and test"}
+            <button
+              disabled={busy || (!key.trim() && !hasKey)}
+              onClick={verifyKey}
+            >
+              {hasKey ? "Test or replace key" : "Save and test"}
             </button>
             <button
               className="secondary"
               disabled={!hasKey}
               onClick={() =>
-                act(async () => {
+                void act(async () => {
                   await forgetGeminiKey();
                   setHasKey(false);
+                  setKeyVerified(false);
                   setMessage("Gemini key forgotten.");
                 })
               }
@@ -194,102 +574,50 @@ export function Options() {
               Forget key
             </button>
           </div>
-          <p className="muted">
-            Use a dedicated key restricted to the Gemini API. Calls use your
-            quota and may incur charges.
-          </p>
         </section>
         <section className="panel">
-          <h2>Cloud consent</h2>
+          <h2>Consent and advanced options</h2>
           <label className="check">
             <input
               type="checkbox"
               checked={settings.consentVersion >= 1}
-              onChange={(e) =>
+              onChange={(event) =>
                 void saveSettings({
                   ...settings,
-                  consentVersion: e.target.checked ? 1 : 0,
+                  consentVersion: event.target.checked ? 1 : 0,
                 })
               }
             />
-            I understand that Analyze and Compact send my entire resume and full
-            job listing directly to Google Gemini using my key.
+            I understand Analyze and Compact send my entire resume and full job
+            listing directly to Google Gemini.
           </label>
           <label className="check">
             <input
               type="checkbox"
               checked={settings.stressAcknowledged}
-              onChange={(e) =>
+              onChange={(event) =>
                 void saveSettings({
                   ...settings,
-                  stressAcknowledged: e.target.checked,
+                  stressAcknowledged: event.target.checked,
                 })
               }
             />
-            Enable advanced stress-test mode. It may create synthetic claims,
-            which cannot be exported.
+            Enable stress-test mode. It may create synthetic claims, which
+            cannot be exported.
           </label>
         </section>
       </div>
-      {!profile && (
-        <section className="panel">
-          <h2>1. Prepare your resume data</h2>
-          <p>
-            Copy this prompt into an AI assistant of your choice together with
-            your resume and career notes. Review its JSON before importing it
-            here.
-          </p>
-          <textarea className="prompt" readOnly value={RESUME_IMPORT_PROMPT} />
-          <button
-            className="secondary"
-            onClick={() =>
-              void navigator.clipboard.writeText(RESUME_IMPORT_PROMPT)
-            }
-          >
-            Copy prompt
-          </button>
-          <h2>2. Import the JSON</h2>
-          <textarea
-            rows={14}
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            placeholder="Paste the complete JSON response here. Invalid imports are never partially saved."
-          />
-          <div className="actions">
-            <button
-              disabled={busy || !importText.trim()}
-              onClick={importResume}
-            >
-              Validate and import
-            </button>
-            <button
-              className="secondary"
-              onClick={() => {
-                setImportText(JSON.stringify(fictionalImport, null, 2));
-                setError("");
-              }}
-            >
-              Load fictional example
-            </button>
-          </div>
-        </section>
-      )}
-      {profile && (
-        <>
-          <ResumeEditor profile={profile} onChange={setProfile} />
-          <div className="sticky-save">
-            <button disabled={busy} onClick={saveProfile}>
-              Save base resume
-            </button>
-          </div>
-        </>
-      )}
+      <ResumeEditor profile={profile} onChange={setProfile} />
+      <div className="sticky-save">
+        <button disabled={busy} onClick={saveProfile}>
+          Save base resume
+        </button>
+      </div>
       <section className="panel">
         <h2>Local data and backup</h2>
         <p>
-          {storage}. Structured history remains on this device until you delete
-          it. Chrome removes extension storage when the extension is
-          uninstalled.
+          {storage}. Structured history remains on this device until deletion.
+          Chrome removes extension storage when the extension is uninstalled.
         </p>
         <div className="actions">
           <button className="secondary" onClick={backup}>
@@ -300,8 +628,8 @@ export function Options() {
             <input
               type="file"
               accept="application/json"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
+              onChange={(event) => {
+                const file = event.target.files?.[0];
                 if (file) void restore(file);
               }}
             />
@@ -318,7 +646,7 @@ export function Options() {
                   await deleteAllData();
                   setProfile(null);
                   setEvidence([]);
-                  setMessage("All structured local data deleted.");
+                  setStep(0);
                   await refresh();
                 });
             }}

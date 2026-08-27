@@ -26,15 +26,15 @@ class ResumeTonerDatabase extends Dexie {
 }
 export const db = new ResumeTonerDatabase();
 export async function getSettings(): Promise<UserSettings> {
-  return (
-    (await db.settings.get("settings")) ?? {
-      id: "settings",
-      consentVersion: 0,
-      pageTarget: 1,
-      modelOverride: "",
-      stressAcknowledged: false,
-    }
-  );
+  const defaults: UserSettings = {
+    id: "settings",
+    consentVersion: 0,
+    termsVersion: 0,
+    pageTarget: 1,
+    modelOverride: "",
+    stressAcknowledged: false,
+  };
+  return { ...defaults, ...(await db.settings.get("settings")) };
 }
 export async function saveImport(
   profile: ResumeProfile,
