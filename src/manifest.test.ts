@@ -11,8 +11,10 @@ describe("Manifest V3 privacy boundary", () => {
     ]);
     expect(JSON.stringify(manifest)).not.toMatch(/localhost|127\.0\.0\.1/);
   });
-  it("ships a self-only extension CSP", () =>
-    expect(manifest.content_security_policy.extension_pages).toContain(
-      "script-src 'self'",
-    ));
+  it("allows only packaged scripts plus the PDF engine's local WebAssembly", () => {
+    const policy = manifest.content_security_policy.extension_pages;
+    expect(policy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    expect(policy).not.toContain("'unsafe-eval'");
+    expect(policy).not.toMatch(/https?:|localhost|127\.0\.0\.1/);
+  });
 });
