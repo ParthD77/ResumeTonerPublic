@@ -128,6 +128,7 @@ export function normalizeResumeImport(value: unknown): ResumeImport {
           credential: cleanChatText(education.credential, "Credential"),
           dates: cleanChatText(education.dates),
           location: cleanChatText(education.location),
+          coursework: strings(education.coursework),
         };
       }),
       experience: array(source.experience).map((item, index) =>

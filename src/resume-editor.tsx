@@ -242,6 +242,20 @@ export function ResumeEditor({
               />
             </label>
           </div>
+          <label>
+            Relevant coursework (comma separated)
+            <input
+              value={item.coursework.join(", ")}
+              onChange={(e) => {
+                const a = structuredClone(profile.education);
+                a[index].coursework = e.target.value
+                  .split(",")
+                  .map((value) => value.trim())
+                  .filter(Boolean);
+                set("education", a);
+              }}
+            />
+          </label>
           <button
             className="danger-link"
             onClick={() =>
@@ -266,6 +280,7 @@ export function ResumeEditor({
               credential: "New credential",
               dates: "",
               location: "",
+              coursework: [],
             },
           ])
         }

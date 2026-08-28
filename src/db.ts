@@ -22,6 +22,25 @@ class ResumeTonerDatabase extends Dexie {
       applications: "id, exportedAt",
       settings: "id",
     });
+    this.version(2)
+      .stores({
+        profiles: "id, updatedAt",
+        evidence: "id, entryId",
+        runs: "id, createdAt, status",
+        applications: "id, exportedAt",
+        settings: "id",
+      })
+      .upgrade((transaction) =>
+        transaction
+          .table("profiles")
+          .toCollection()
+          .modify((profile: ResumeProfile) => {
+            profile.education = profile.education.map((education) => ({
+              ...education,
+              coursework: education.coursework ?? [],
+            }));
+          }),
+      );
   }
 }
 export const db = new ResumeTonerDatabase();

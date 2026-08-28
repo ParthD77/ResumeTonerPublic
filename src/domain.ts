@@ -41,6 +41,7 @@ export const EducationSchema = z.object({
   credential: z.string().min(1).max(500),
   dates: z.string().max(200).default(""),
   location: z.string().max(200).default(""),
+  coursework: z.array(z.string().min(1).max(200)).default([]),
 });
 export const ResumeProfileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),

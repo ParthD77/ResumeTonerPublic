@@ -18,6 +18,7 @@ export const fictionalImport: ResumeImport = {
         credential: "B.Sc. Computer Science",
         dates: "2022 – 2026",
         location: "Example City, ON",
+        coursework: ["Data Structures", "Algorithms", "Software Design"],
       },
     ],
     experience: [
@@ -114,6 +115,7 @@ FORMAT RULES — follow these exactly:
 - Use every property shown below with exactly the same property names. Do not substitute "name" for a project's "organization" or "title".
 - Use an empty string for an unknown optional string, an empty array for an unknown list, and false for an unknown boolean.
 - Required display fields may not be empty. If a project has only one known name, put that name in "organization" and use "Project" for "title". If an experience title is unknown, use "Role". If an education credential is unknown, use "Credential".
+- Every education object must include "coursework" as an array of individual course names; use [] when none were supplied.
 - Use unique stable IDs in the patterns shown. Link each bullet to at least one evidence ID when evidence exists.
 - Use schemaVersion 1 and valid ISO 8601 timestamps.
 
