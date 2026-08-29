@@ -19,9 +19,11 @@ import {
 import { DEFAULT_MODEL, testGemini } from "../engine";
 import { forgetGeminiKey, getGeminiKey, setGeminiKey } from "../key-store";
 import { parseResumeImport } from "../import-compat";
+import { parseAdditionalContext } from "../additional-context";
+import { importResumePdf } from "../pdf-import";
 import { downloadBlob } from "../pdf";
 import { ResumeEditor } from "../resume-editor";
-import { fictionalImport, RESUME_IMPORT_PROMPT } from "../sample";
+import { ADDITIONAL_CONTEXT_PROMPT, fictionalImport } from "../sample";
 import "../styles.css";
 import "./onboarding.css";
 
@@ -29,8 +31,8 @@ const TERMS_VERSION = 1;
 const steps = [
   "Gemini key",
   "Your responsibilities",
-  "Prepare with AI",
-  "Import JSON",
+  "Upload resume",
+  "Review import",
 ];
 const issueText = (error: unknown) =>
   error instanceof ZodError
@@ -45,6 +47,64 @@ const issueText = (error: unknown) =>
         ? error.message
         : String(error);
 
+function AdditionalContextFields({
+  value,
+  confirmed,
+  onChange,
+  onConfirm,
+}: {
+  value: string;
+  confirmed: boolean;
+  onChange: (value: string) => void;
+  onConfirm: (value: boolean) => void;
+}) {
+  return (
+    <div className="additional-context">
+      <h3>Optional: add context from chatbot memory</h3>
+      <p className="muted">
+        This can add facts that were not printed on the PDF. Resume Toner
+        cannot prove that a chatbot memory is true; it only checks that later
+        wording stays within information you reviewed and saved.
+      </p>
+      <details>
+        <summary>Show the chatbot prompt</summary>
+        <textarea
+          className="prompt"
+          readOnly
+          value={ADDITIONAL_CONTEXT_PROMPT}
+          aria-label="Additional career context prompt"
+        />
+        <button
+          type="button"
+          className="secondary"
+          onClick={() =>
+            void navigator.clipboard.writeText(ADDITIONAL_CONTEXT_PROMPT)
+          }
+        >
+          Copy prompt
+        </button>
+      </details>
+      <label>
+        Chatbot JSON response
+        <textarea
+          rows={9}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder='Paste the {"evidence":[...]} response here'
+        />
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => onConfirm(event.target.checked)}
+        />
+        I personally reviewed every added claim and confirm it is accurate.
+      </label>
+    </div>
+  );
+}
+
 export function Options() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
@@ -55,6 +115,9 @@ export function Options() {
   const [step, setStep] = useState(0);
   const [checks, setChecks] = useState([false, false, false]);
   const [importText, setImportText] = useState("");
+  const [pendingPdf, setPendingPdf] = useState<File | null>(null);
+  const [additionalText, setAdditionalText] = useState("");
+  const [additionalConfirmed, setAdditionalConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [storage, setStorage] = useState("Calculating…");
@@ -113,13 +176,61 @@ export function Options() {
   const importResume = () =>
     act(async () => {
       const parsed = parseResumeImport(importText);
-      await saveImport(parsed.profile, parsed.evidence);
+      const additional = additionalText.trim()
+        ? parseAdditionalContext(additionalText)
+        : [];
+      if (additional.length && !additionalConfirmed)
+        throw new Error(
+          "Confirm that you personally reviewed the additional chatbot context.",
+        );
+      await saveImport(
+        parsed.profile,
+        [...parsed.evidence, ...additional],
+        pendingPdf ? { filename: pendingPdf.name, pdf: pendingPdf } : null,
+      );
       if (settings)
         await saveSettings({ ...settings, onboardingCompletedAt: nowIso() });
       setProfile(parsed.profile);
-      setEvidence(parsed.evidence);
+      setEvidence([...parsed.evidence, ...additional]);
       setMessage(
         "Setup complete. Your resume data was validated and saved locally.",
+      );
+      await refresh();
+    });
+  const importPdf = (file: File) =>
+    act(async () => {
+      const parsed = await importResumePdf(
+        file,
+        settings?.modelOverride || DEFAULT_MODEL,
+      );
+      setPendingPdf(file);
+      setAdditionalText("");
+      setAdditionalConfirmed(false);
+      setImportText(JSON.stringify(parsed, null, 2));
+      setStep(3);
+      setMessage(
+        "PDF extracted. Review the complete structured resume before saving; nothing has been saved yet.",
+      );
+    });
+  const saveAdditionalContext = () =>
+    act(async () => {
+      if (!profile) return;
+      const additional = parseAdditionalContext(additionalText);
+      if (!additional.length)
+        throw new Error("The chatbot response contains no additional facts.");
+      if (!additionalConfirmed)
+        throw new Error(
+          "Confirm that you personally reviewed every additional fact.",
+        );
+      const byId = new Map(evidence.map((item) => [item.id, item]));
+      additional.forEach((item) => byId.set(item.id, item));
+      const merged = [...byId.values()];
+      await saveImport(profile, merged);
+      setEvidence(merged);
+      setAdditionalText("");
+      setAdditionalConfirmed(false);
+      setMessage(
+        `${additional.length} user-confirmed context record${additional.length === 1 ? "" : "s"} saved locally.`,
       );
       await refresh();
     });
@@ -138,7 +249,7 @@ export function Options() {
   const backup = () =>
     act(async () => {
       const value = await exportBackup();
-      downloadBlob(
+      await downloadBlob(
         new Blob([JSON.stringify(value, null, 2)], {
           type: "application/json",
         }),
@@ -381,82 +492,49 @@ export function Options() {
 
         {step === 2 && (
           <section className="panel onboarding-card">
-            <p className="eyebrow">PREPARE YOUR CAREER RECORD</p>
-            <h2>Ask an AI assistant to structure your information</h2>
+            <p className="eyebrow">IMPORT YOUR ACTUAL RESUME</p>
+            <h2>Upload your current PDF</h2>
             <p className="lede">
-              This optional helper step happens outside Resume Toner. Choose an
-              assistant you trust; its own privacy policy and data controls
-              apply.
+              Resume Toner reads the PDF text locally, then asks Gemini to
+              transcribe every section without rewriting it. You review the
+              complete result before anything is saved.
             </p>
-            <ol className="instruction-list">
-              <li>
-                <strong>Open a new chat</strong>
-                <span>
-                  Use any assistant that can read an attached resume and return
-                  JSON.
-                </span>
-              </li>
-              <li>
-                <strong>Attach your current resume</strong>
-                <span>
-                  Remove anything you do not want that provider to process.
-                  Never share passwords, API keys, government IDs, banking or
-                  health information.
-                </span>
-              </li>
-              <li>
-                <strong>Decide whether to use memory or chat history</strong>
-                <span>
-                  Optional: if supported and you are comfortable, ask it to use
-                  relevant career context. Memory can be wrong or outdated;
-                  uncertain or conflicting facts must be omitted.
-                </span>
-              </li>
-              <li>
-                <strong>Paste the prompt below</strong>
-                <span>
-                  Send it with the resume, then copy the complete JSON response
-                  including the JSON code block.
-                </span>
-              </li>
-            </ol>
             <div className="memory-warning">
-              <strong>Before using AI memory:</strong> check its memory/history
-              settings and remove irrelevant or sensitive memories. You can skip
-              memory and use only your resume.
+              <strong>Formatting note:</strong> PDF pages are fixed artwork, not
+              flowing documents. Resume Toner keeps the uploaded PDF as the
+              export source and changes only accepted wording that fits its
+              original text boxes. A change that cannot fit is blocked instead
+              of reformatting the page.
             </div>
-            <textarea
-              className="prompt"
-              readOnly
-              value={RESUME_IMPORT_PROMPT}
-              aria-label="Resume structuring prompt"
-            />
             <div className="actions split-actions">
               <button className="secondary" onClick={() => setStep(1)}>
                 Back
               </button>
               <div className="actions">
+                <label className="button file-button">
+                  {busy ? "Reading PDF…" : "Upload PDF"}
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    disabled={busy}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void importPdf(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
                 <button
                   className="secondary"
-                  onClick={() =>
-                    void navigator.clipboard
-                      .writeText(RESUME_IMPORT_PROMPT)
-                      .then(() =>
-                        setMessage(
-                          "Prompt copied. Paste it into the AI chat with your resume attached.",
-                        ),
-                      )
-                  }
-                >
-                  Copy prompt
-                </button>
-                <button
                   onClick={() => {
                     setMessage("");
+                    setPendingPdf(null);
+                    setAdditionalText("");
+                    setAdditionalConfirmed(false);
                     setStep(3);
                   }}
                 >
-                  I have the JSON
+                  Import JSON instead
                 </button>
               </div>
             </div>
@@ -466,10 +544,11 @@ export function Options() {
         {step === 3 && (
           <section className="panel onboarding-card">
             <p className="eyebrow">VALIDATE BEFORE SAVING</p>
-            <h2>Import your JSON</h2>
+            <h2>Review the complete resume import</h2>
             <p className="lede">
-              Paste the complete response. Resume Toner validates every field
-              first and saves nothing if any part is invalid.
+              Check education, coursework, every job and project, skills,
+              dates, links, and every bullet. Resume Toner validates the data
+              and saves nothing until you confirm it.
             </p>
             <label>
               Resume Toner JSON
@@ -484,9 +563,17 @@ export function Options() {
             </label>
             <p className="muted">
               After import, review contact details, dates, employers,
-              technologies, and metrics. Imported information is treated as
-              trusted evidence.
+              technologies, and metrics. “Evidence-supported” means consistent
+              with information you confirmed; it is not an external fact check.
             </p>
+            {pendingPdf && (
+              <AdditionalContextFields
+                value={additionalText}
+                confirmed={additionalConfirmed}
+                onChange={setAdditionalText}
+                onConfirm={setAdditionalConfirmed}
+              />
+            )}
             <div className="actions split-actions">
               <button className="secondary" onClick={() => setStep(2)}>
                 Back
@@ -496,6 +583,7 @@ export function Options() {
                   className="secondary"
                   onClick={() => {
                     setImportText(JSON.stringify(fictionalImport, null, 2));
+                    setPendingPdf(null);
                     setError("");
                   }}
                 >
@@ -505,15 +593,16 @@ export function Options() {
                   disabled={busy || !importText.trim()}
                   onClick={importResume}
                 >
-                  Validate and import
+                  Confirm complete resume
                 </button>
               </div>
             </div>
           </section>
         )}
         <p className="onboarding-footnote">
-          Nothing is sent to Resume Toner. Delete local data and forget your key
-          at any time in Settings.
+          Resume Toner has no hosted backend. PDF text is sent directly to
+          Gemini with your key for extraction, then stored locally after you
+          confirm it. Delete local data and forget your key at any time.
         </p>
       </main>
     );
@@ -608,6 +697,20 @@ export function Options() {
           </label>
         </section>
       </div>
+      <section className="panel">
+        <AdditionalContextFields
+          value={additionalText}
+          confirmed={additionalConfirmed}
+          onChange={setAdditionalText}
+          onConfirm={setAdditionalConfirmed}
+        />
+        <button
+          disabled={busy || !additionalText.trim() || !additionalConfirmed}
+          onClick={saveAdditionalContext}
+        >
+          Add reviewed context
+        </button>
+      </section>
       <ResumeEditor profile={profile} onChange={setProfile} />
       <div className="sticky-save">
         <button disabled={busy} onClick={saveProfile}>

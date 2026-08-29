@@ -657,11 +657,11 @@ export async function generateRun(
     job,
     editableTargets: editable,
     instructions:
-      "Generate useful candidates only. Rewrites must add job signal or shorten without loss. Adds must be supported by evidence and target an existing entry. Never invent facts, technologies, roles, dates, or metrics.",
+      "Return only highly relevant rewrites of existing bullets. Preserve the original claim, voice, metrics, technologies, and meaning; change as few words as possible. Each rewrite must be no longer than its original so it can fit the same layout. Do not add bullets, remove content, reorder anything, or invent facts, technologies, roles, dates, or metrics.",
   });
   const candidates = await geminiJson(
     model,
-    "You are a careful technical resume writer. Use only supplied evidence. Prefer fewer material changes. Synthetic claims are allowed only in stress_test mode.",
+    "You are a restrained technical resume copy editor. Use only supplied evidence. Prefer zero changes over unnecessary changes and make at most three small wording substitutions. Synthetic claims are allowed only in stress_test mode.",
     prompt,
     schemas.candidates,
     CandidateSetSchema,
@@ -681,7 +681,13 @@ export async function generateRun(
   const existing = entries.flatMap((e) => e.bullets.map((b) => b.text));
   const valid = candidates.candidates.filter((c) => {
     const entry = editable.find((e) => e.id === c.targetEntryId);
-    if (!entry || !allowed.has(c.factuality) || !c.text.trim()) return false;
+    if (
+      !entry ||
+      c.type !== "rewrite" ||
+      !allowed.has(c.factuality) ||
+      !c.text.trim()
+    )
+      return false;
     if (
       c.factuality !== "synthetic" &&
       (!c.evidenceIds.length ||
@@ -700,6 +706,7 @@ export async function generateRun(
     if (c.type === "rewrite") {
       const old = entry.bullets.find((b) => b.id === c.targetBulletId)?.text;
       if (!old) return false;
+      if (mode !== "stress_test" && c.text.length > old.length) return false;
       const newSignals = [...coverage(c.text, job)].some(
         (x) => !coverage(old, job).has(x),
       );
@@ -745,7 +752,7 @@ export async function generateRun(
         (ranks.get(b.candidateId)?.score ?? 0) -
         (ranks.get(a.candidateId)?.score ?? 0),
     )
-    .slice(0, 7)) {
+    .slice(0, 3)) {
     const entry = entries.find((e) => e.id === c.targetEntryId)!;
     const old =
       c.type === "rewrite"

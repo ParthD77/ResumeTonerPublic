@@ -106,7 +106,7 @@ export const fictionalImport: ResumeImport = {
 };
 export const RESUME_IMPORT_PROMPT = `I am setting up Resume Toner. Convert the resume attached to this chat into the JSON format below.
 
-Use the attached resume as the primary source. You may also use relevant career facts from memory or earlier chats if I explicitly asked you to use them. Treat the information I provided as true. Preserve employers, roles, dates, technologies, responsibilities, and metrics without trying to independently verify them.
+Use only the attached resume. Transcribe it faithfully: do not rewrite, summarize, improve, infer, merge, or omit content. Preserve every visible section, employer, role, date, course, technology, responsibility, bullet, and metric. Information supplied by the user is not independently verified.
 
 FORMAT RULES — follow these exactly:
 - Return exactly one JSON object inside a \`\`\`json code block. Put nothing before or after the block.
@@ -120,6 +120,26 @@ FORMAT RULES — follow these exactly:
 - Use schemaVersion 1 and valid ISO 8601 timestamps.
 
 Required top-level shape:
-{"schemaVersion":1,"profile":{"schemaVersion":1,"id":"profile.base","label":"Base resume","name":"Resume owner","email":"","phone":"","location":"","links":[{"label":"Portfolio","url":"https://example.com"}],"education":[{"id":"education.1","institution":"School name","credential":"Credential","dates":"","location":""}],"experience":[{"id":"experience.1","organization":"Employer name","title":"Role","dates":"","location":"","url":"","technologies":[],"locked":false,"bullets":[{"id":"experience.1.b1","text":"User-provided accomplishment","factuality":"verified","locked":false,"evidenceIds":["evidence.1"]}]}],"projects":[{"id":"project.1","organization":"Project name","title":"Project","dates":"","location":"","url":"","technologies":[],"locked":false,"bullets":[{"id":"project.1.b1","text":"User-provided project accomplishment","factuality":"verified","locked":false,"evidenceIds":["evidence.2"]}]}],"skills":{"Languages":[],"Frameworks":[],"Tools":[]},"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"},"evidence":[{"id":"evidence.1","entryId":"experience.1","source":"Attached resume","facts":[],"technologies":[],"metrics":[],"trusted":true},{"id":"evidence.2","entryId":"project.1","source":"Attached resume","facts":[],"technologies":[],"metrics":[],"trusted":true}]}
+{"schemaVersion":1,"profile":{"schemaVersion":1,"id":"profile.base","label":"Base resume","name":"Resume owner","email":"","phone":"","location":"","links":[{"label":"Portfolio","url":"https://example.com"}],"education":[{"id":"education.1","institution":"School name","credential":"Credential","dates":"","location":"","coursework":[]}],"experience":[{"id":"experience.1","organization":"Employer name","title":"Role","dates":"","location":"","url":"","technologies":[],"locked":false,"bullets":[{"id":"experience.1.b1","text":"User-provided accomplishment","factuality":"verified","locked":false,"evidenceIds":["evidence.1"]}]}],"projects":[{"id":"project.1","organization":"Project name","title":"Project","dates":"","location":"","url":"","technologies":[],"locked":false,"bullets":[{"id":"project.1.b1","text":"User-provided project accomplishment","factuality":"verified","locked":false,"evidenceIds":["evidence.2"]}]}],"skills":{"Languages":[],"Frameworks":[],"Tools":[]},"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"},"evidence":[{"id":"evidence.1","entryId":"experience.1","source":"Attached resume","facts":[],"technologies":[],"metrics":[],"trusted":true},{"id":"evidence.2","entryId":"project.1","source":"Attached resume","facts":[],"technologies":[],"metrics":[],"trusted":true}]}
 
 Include all relevant career information the user supplied. Exclude passwords, API keys, government identification numbers, banking information, health information, and references' private contact details.`;
+
+export const ADDITIONAL_CONTEXT_PROMPT = `Help me export optional career context for Resume Toner from information I previously told you or that appears in this conversation.
+
+This is not a request to improve my resume. Return only concrete claims that I personally supplied. Do not infer, embellish, combine uncertain memories, estimate dates or metrics, or treat your prior suggestions as facts. If a detail is uncertain, contradictory, merely inferred, or not attributable to something I said, omit it. Do not repeat facts already visible in my attached resume if one is available.
+
+Before returning the JSON, silently check each claim against these rules:
+1. It describes my own work, education, project, skill, or measurable outcome.
+2. I was the source of the claim; it was not invented by an assistant.
+3. Exact numbers, dates, technologies, employers, and titles appear only when I supplied them.
+4. Sensitive information is excluded: passwords, API keys, government IDs, financial or health data, and other people's private contact details.
+
+Return exactly one JSON object inside a \`\`\`json code block and nothing else, using this shape:
+{"evidence":[{"id":"memory.1","entryId":"experience.1","source":"User-confirmed chatbot context","facts":["A single concrete user-supplied fact"],"technologies":["Technology explicitly supplied by the user"],"metrics":[{"value":"Exact user-supplied value","meaning":"What that value measured"}],"trusted":false}]}
+
+Rules:
+- Use unique IDs beginning with "memory.".
+- entryId is optional; omit it unless the matching Resume Toner entry ID is known.
+- Keep each fact atomic and quote no assistant-generated prose.
+- Set trusted to false. Resume Toner will require me to review and confirm the information before using it.
+- If there is no qualifying information, return {"evidence":[]}.`;

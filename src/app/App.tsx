@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { db, getSettings } from "../db";
+import { db, getSettings, type ResumeSource } from "../db";
 import type {
   ApplicationRecord,
   JobCapture,
@@ -19,6 +19,7 @@ import {
   testGemini,
 } from "../engine";
 import { downloadBlob, renderResumePdf } from "../pdf";
+import { renderOriginalLayoutPdf } from "../original-pdf";
 import "../styles.css";
 
 function ScoreCard({
@@ -39,14 +40,22 @@ function ScoreCard({
   );
 }
 
+const evidenceLabel = (value: string) =>
+  value === "verified"
+    ? "supported by saved evidence"
+    : value === "extrapolated"
+      ? "conservative inference"
+      : "synthetic — cannot export";
+
 export function App() {
   const [profile, setProfile] = useState<ResumeProfile | null>(null),
+    [resumeSource, setResumeSource] = useState<ResumeSource | null>(null),
     [settings, setSettings] = useState<UserSettings | null>(null),
     [capture, setCapture] = useState<JobCapture | null>(null),
     [run, setRun] = useState<TailoringRun | null>(null),
     [history, setHistory] = useState<ApplicationRecord[]>([]),
     [view, setView] = useState<"tailor" | "history">("tailor"),
-    [mode, setMode] = useState<TailoringMode>("evidence_extrapolation"),
+    [mode, setMode] = useState<TailoringMode>("evidence_only"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -54,14 +63,16 @@ export function App() {
     [previewPages, setPreviewPages] = useState(0);
   const model = settings?.modelOverride || DEFAULT_MODEL;
   const refresh = async () => {
-    const [p, s, h] = await Promise.all([
+    const [p, s, h, source] = await Promise.all([
       db.profiles.toCollection().first(),
       getSettings(),
       db.applications.orderBy("exportedAt").reverse().toArray(),
+      db.resumeSources.get("base"),
     ]);
     setProfile(p ?? null);
     setSettings(s);
     setHistory(h);
+    setResumeSource(source ?? null);
   };
   useEffect(() => {
     void (async () => {
@@ -86,7 +97,10 @@ export function App() {
     let active = true,
       url = "";
     if (!run || !finalProfile) return;
-    void renderResumePdf(finalProfile)
+    const render = resumeSource
+      ? renderOriginalLayoutPdf(resumeSource.pdf, run.proposals)
+      : renderResumePdf(finalProfile);
+    void render
       .then((x) => {
         if (!active) return;
         url = URL.createObjectURL(x.blob);
@@ -98,7 +112,7 @@ export function App() {
       active = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [run, finalProfile]);
+  }, [run, finalProfile, resumeSource]);
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -184,13 +198,15 @@ export function App() {
         throw new Error(
           "Synthetic stress-test claims cannot be exported. Reject or remove them first.",
         );
-      const rendered = await renderResumePdf(finalProfile);
+      const rendered = resumeSource
+        ? await renderOriginalLayoutPdf(resumeSource.pdf, run.proposals)
+        : await renderResumePdf(finalProfile);
       if (rendered.pages > run.pageTarget)
         throw new Error(
           `The resume is ${rendered.pages} pages, above the selected ${run.pageTarget}-page limit. Use Compact or edit content.`,
         );
-      const filename = `${finalProfile.name}-${run.job.company}-${run.job.role}-resume.pdf`;
-      downloadBlob(rendered.blob, filename);
+      const filename = `${finalProfile.name.replace(/\s+/g, "")}Resume.pdf`;
+      await downloadBlob(rendered.blob, filename);
       const stamp = nowIso(),
         exported: { run: TailoringRun; record: ApplicationRecord } = {
           run: { ...run, status: "exported", updatedAt: stamp },
@@ -426,7 +442,9 @@ export function App() {
                 value={mode}
                 onChange={(e) => setMode(e.target.value as TailoringMode)}
               >
-                <option value="evidence_only">Evidence only</option>
+                <option value="evidence_only">
+                  Saved evidence only (recommended)
+                </option>
                 <option value="evidence_extrapolation">
                   Evidence + conservative extrapolation
                 </option>
@@ -455,6 +473,13 @@ export function App() {
             <b>Cloud transfer:</b> Analyze makes three Gemini calls and sends
             the full job listing, full resume, and career evidence directly to
             Google using your key.
+          </div>
+          <div className="payload-notice">
+            <b>What the evidence check means:</b> Resume Toner checks that
+            proposed wording points to information in your uploaded resume or
+            user-confirmed context, preserves supplied numbers, and does not add
+            unsupported claims. It cannot independently prove that your source
+            information is true.
           </div>
           <button
             disabled={busy || !capture || capture.description.length < 50}
@@ -528,7 +553,7 @@ export function App() {
                       CHANGE {i + 1} · {p.type.toUpperCase()} · +
                       {p.estimatedScoreDelta}
                     </span>
-                    <mark>{p.factuality}</mark>
+                    <mark>{evidenceLabel(p.factuality)}</mark>
                   </div>
                   {p.oldValue && (
                     <>
@@ -571,6 +596,11 @@ export function App() {
                   {run.pageTarget === 1 ? "" : "s"}
                 </span>
               </div>
+              <p className="muted">
+                {resumeSource
+                  ? "Original-layout mode: accepted wording is fitted into the source PDF’s existing text areas."
+                  : "Template mode: upload a PDF in Settings to preserve its original layout."}
+              </p>
               {preview ? (
                 <iframe title="Resume PDF preview" src={preview} />
               ) : (

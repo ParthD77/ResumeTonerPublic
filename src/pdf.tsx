@@ -251,11 +251,24 @@ export async function renderResumePdf(profile: ResumeProfile) {
   return { blob, pages: parsed.getPageCount(), bytes: bytes.byteLength };
 }
 
-export function downloadBlob(blob: Blob, filename: string) {
+export async function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename.replace(/[^a-z0-9._-]+/gi, "-");
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  const cleanFilename = filename.replace(/[^a-z0-9._-]+/gi, "_");
+  try {
+    if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+      await chrome.downloads.download({
+        url,
+        filename: cleanFilename,
+        conflictAction: "overwrite",
+        saveAs: false,
+      });
+    } else {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = cleanFilename;
+      anchor.click();
+    }
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 }

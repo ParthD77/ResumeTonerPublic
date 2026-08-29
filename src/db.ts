@@ -7,12 +7,19 @@ import type {
   UserSettings,
 } from "./domain";
 import { BackupEnvelopeSchema, nowIso } from "./domain";
+export type ResumeSource = {
+  id: "base";
+  filename: string;
+  pdf: Blob;
+  importedAt: string;
+};
 class ResumeTonerDatabase extends Dexie {
   profiles!: EntityTable<ResumeProfile, "id">;
   evidence!: EntityTable<CareerEvidence, "id">;
   runs!: EntityTable<TailoringRun, "id">;
   applications!: EntityTable<ApplicationRecord, "id">;
   settings!: EntityTable<UserSettings, "id">;
+  resumeSources!: EntityTable<ResumeSource, "id">;
   constructor() {
     super("resume-toner");
     this.version(1).stores({
@@ -41,6 +48,14 @@ class ResumeTonerDatabase extends Dexie {
             }));
           }),
       );
+    this.version(3).stores({
+      profiles: "id, updatedAt",
+      evidence: "id, entryId",
+      runs: "id, createdAt, status",
+      applications: "id, exportedAt",
+      settings: "id",
+      resumeSources: "id, importedAt",
+    });
   }
 }
 export const db = new ResumeTonerDatabase();
@@ -58,12 +73,23 @@ export async function getSettings(): Promise<UserSettings> {
 export async function saveImport(
   profile: ResumeProfile,
   evidence: CareerEvidence[],
+  source?: { filename: string; pdf: Blob } | null,
 ) {
-  await db.transaction("rw", db.profiles, db.evidence, async () => {
+  await db.transaction("rw", db.profiles, db.evidence, db.resumeSources, async () => {
     await db.profiles.clear();
     await db.evidence.clear();
     await db.profiles.put({ ...profile, updatedAt: nowIso() });
     await db.evidence.bulkPut(evidence);
+    if (source !== undefined) {
+      await db.resumeSources.clear();
+      if (source)
+        await db.resumeSources.put({
+          id: "base",
+          filename: source.filename,
+          pdf: source.pdf,
+          importedAt: nowIso(),
+        });
+    }
   });
 }
 export async function getLocalDataSummary() {
@@ -98,11 +124,14 @@ export async function restoreBackup(value: unknown) {
   const b = BackupEnvelopeSchema.parse(value);
   await db.transaction(
     "rw",
-    db.profiles,
-    db.evidence,
-    db.runs,
-    db.applications,
-    db.settings,
+    [
+      db.profiles,
+      db.evidence,
+      db.runs,
+      db.applications,
+      db.settings,
+      db.resumeSources,
+    ],
     async () => {
       await Promise.all([
         db.profiles.clear(),
@@ -110,6 +139,7 @@ export async function restoreBackup(value: unknown) {
         db.runs.clear(),
         db.applications.clear(),
         db.settings.clear(),
+        db.resumeSources.clear(),
       ]);
       await db.profiles.bulkPut(b.profiles);
       await db.evidence.bulkPut(b.evidence);

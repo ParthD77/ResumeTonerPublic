@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Tailor a technical resume to a job listing with your own Gemini API key.",
   "minimum_chrome_version": "120",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "downloads", "scripting", "storage"],
   "host_permissions": ["https://generativelanguage.googleapis.com/*"],
   "background": { "service_worker": "service-worker.js", "type": "module" },
   "icons": {
