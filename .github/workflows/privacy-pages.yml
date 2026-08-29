@@ -1,0 +1,44 @@
+name: Publish privacy policy
+
+on:
+  push:
+    branches:
+      - codex/byok-extension
+    paths:
+      - index.html
+      - .github/workflows/privacy-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Prepare privacy site
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+      - name: Upload privacy site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy privacy site
+        id: deployment
+        uses: actions/deploy-pages@v4
