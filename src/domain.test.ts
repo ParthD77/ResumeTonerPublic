@@ -13,4 +13,17 @@ describe("versioned import", () => {
         profile: { name: "Incomplete" },
       }).success,
     ).toBe(false));
+  it.each(["javascript:alert(1)", "data:text/html,unsafe", "file:///secret"])(
+    "rejects an unsafe resume link protocol: %s",
+    (url) => {
+      const candidate = structuredClone(fictionalImport);
+      candidate.profile.links = [{ label: "Unsafe", url }];
+      expect(ResumeImportSchema.safeParse(candidate).success).toBe(false);
+    },
+  );
+  it("accepts HTTPS resume links", () => {
+    const candidate = structuredClone(fictionalImport);
+    candidate.profile.links = [{ label: "Portfolio", url: "https://example.com" }];
+    expect(ResumeImportSchema.safeParse(candidate).success).toBe(true);
+  });
 });

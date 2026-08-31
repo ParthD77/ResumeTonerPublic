@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { db, getSettings, type ResumeSource } from "../db";
+import { db, getSettings } from "../db";
 import type {
   ApplicationRecord,
   JobCapture,
@@ -19,7 +19,6 @@ import {
   testGemini,
 } from "../engine";
 import { downloadBlob, renderResumePdf } from "../pdf";
-import { renderOriginalLayoutPdf } from "../original-pdf";
 import "../styles.css";
 
 function ScoreCard({
@@ -49,7 +48,6 @@ const evidenceLabel = (value: string) =>
 
 export function App() {
   const [profile, setProfile] = useState<ResumeProfile | null>(null),
-    [resumeSource, setResumeSource] = useState<ResumeSource | null>(null),
     [settings, setSettings] = useState<UserSettings | null>(null),
     [capture, setCapture] = useState<JobCapture | null>(null),
     [run, setRun] = useState<TailoringRun | null>(null),
@@ -63,16 +61,14 @@ export function App() {
     [previewPages, setPreviewPages] = useState(0);
   const model = settings?.modelOverride || DEFAULT_MODEL;
   const refresh = async () => {
-    const [p, s, h, source] = await Promise.all([
+    const [p, s, h] = await Promise.all([
       db.profiles.toCollection().first(),
       getSettings(),
       db.applications.orderBy("exportedAt").reverse().toArray(),
-      db.resumeSources.get("base"),
     ]);
     setProfile(p ?? null);
     setSettings(s);
     setHistory(h);
-    setResumeSource(source ?? null);
   };
   useEffect(() => {
     void (async () => {
@@ -97,10 +93,7 @@ export function App() {
     let active = true,
       url = "";
     if (!run || !finalProfile) return;
-    const render = resumeSource
-      ? renderOriginalLayoutPdf(resumeSource.pdf, run.proposals)
-      : renderResumePdf(finalProfile);
-    void render
+    void renderResumePdf(finalProfile)
       .then((x) => {
         if (!active) return;
         url = URL.createObjectURL(x.blob);
@@ -112,7 +105,7 @@ export function App() {
       active = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [run, finalProfile, resumeSource]);
+  }, [run, finalProfile]);
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -198,9 +191,7 @@ export function App() {
         throw new Error(
           "Synthetic stress-test claims cannot be exported. Reject or remove them first.",
         );
-      const rendered = resumeSource
-        ? await renderOriginalLayoutPdf(resumeSource.pdf, run.proposals)
-        : await renderResumePdf(finalProfile);
+      const rendered = await renderResumePdf(finalProfile);
       if (rendered.pages > run.pageTarget)
         throw new Error(
           `The resume is ${rendered.pages} pages, above the selected ${run.pageTarget}-page limit. Use Compact or edit content.`,
@@ -597,9 +588,8 @@ export function App() {
                 </span>
               </div>
               <p className="muted">
-                {resumeSource
-                  ? "Original-layout mode: accepted wording is fitted into the source PDF’s existing text areas."
-                  : "Template mode: upload a PDF in Settings to preserve its original layout."}
+                Fresh ATS template: exports contain only the reviewed resume
+                data and never reuse or cover text from the uploaded PDF.
               </p>
               {preview ? (
                 <iframe title="Resume PDF preview" src={preview} />

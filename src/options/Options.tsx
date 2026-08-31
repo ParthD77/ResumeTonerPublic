@@ -420,7 +420,9 @@ export function Options() {
               <p>
                 <strong>Your data choices matter.</strong> Analyze and Compact
                 send your full resume and job listing directly to Google. Local
-                records stay in Chrome until deletion or uninstall.
+                records stay in Chrome until deletion or uninstall. Under
+                Google’s current terms, free-tier prompts may be used to improve
+                its products; paid-service prompts are not.
               </p>
             </div>
             <label className="check">
@@ -443,7 +445,9 @@ export function Options() {
                 }
               />
               I understand my full resume and job listing are sent directly to
-              Google only when I choose Analyze or Compact.
+              Google only when I choose Analyze or Compact, and that Google may
+              use free-tier prompts to improve its products while paid-service
+              prompts are not used for that purpose under its current terms.
             </label>
             <label className="check">
               <input
@@ -500,11 +504,10 @@ export function Options() {
               complete result before anything is saved.
             </p>
             <div className="memory-warning">
-              <strong>Formatting note:</strong> PDF pages are fixed artwork, not
-              flowing documents. Resume Toner keeps the uploaded PDF as the
-              export source and changes only accepted wording that fits its
-              original text boxes. A change that cannot fit is blocked instead
-              of reformatting the page.
+              <strong>Formatting note:</strong> The uploaded PDF is used only to
+              import resume data. Exports are newly generated with Resume
+              Toner’s ATS template so rejected or original wording cannot remain
+              hidden in the output.
             </div>
             <div className="actions split-actions">
               <button className="secondary" onClick={() => setStep(1)}>
@@ -679,7 +682,9 @@ export function Options() {
               }
             />
             I understand Analyze and Compact send my entire resume and full job
-            listing directly to Google Gemini.
+            listing directly to Google Gemini. Google may use free-tier prompts
+            to improve its products; paid-service prompts are not used for that
+            purpose under its current terms.
           </label>
           <label className="check">
             <input

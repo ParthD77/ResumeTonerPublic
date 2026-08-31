@@ -1,9 +1,9 @@
-name: Publish privacy policy
+name: Publish landing page
 
 on:
   push:
     branches:
-      - codex/byok-extension
+      - main
     paths:
       - index.html
       - .github/workflows/privacy-pages.yml
@@ -31,10 +31,21 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Prepare privacy site
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build extension package
+        run: |
+          npm ci
+          npm run build
+      - name: Prepare landing site
         run: |
           mkdir -p _site
           cp index.html _site/index.html
+          cd dist
+          zip -qr ../_site/resume-toner-chrome.zip .
       - name: Upload privacy site
         uses: actions/upload-pages-artifact@v3
         with:

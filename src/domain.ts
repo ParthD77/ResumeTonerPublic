@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+const HttpsUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => /^https:\/\//i.test(value), {
+    message: "Resume links must use https://",
+  });
+
 export const SCHEMA_VERSION = 1 as const;
 export const FactualitySchema = z.enum([
   "verified",
@@ -30,7 +37,7 @@ export const ResumeEntrySchema = z.object({
   title: z.string().min(1).max(300),
   dates: z.string().max(200).default(""),
   location: z.string().max(200).default(""),
-  url: z.string().url().optional().or(z.literal("")),
+  url: HttpsUrlSchema.optional().or(z.literal("")),
   technologies: z.array(z.string().min(1).max(100)).default([]),
   bullets: z.array(BulletSchema).default([]),
   locked: z.boolean().default(false),
@@ -52,7 +59,7 @@ export const ResumeProfileSchema = z.object({
   phone: z.string().max(100).default(""),
   location: z.string().max(200).default(""),
   links: z
-    .array(z.object({ label: z.string().min(1), url: z.string().url() }))
+    .array(z.object({ label: z.string().min(1), url: HttpsUrlSchema }))
     .default([]),
   education: z.array(EducationSchema).default([]),
   experience: z.array(ResumeEntrySchema).default([]),
