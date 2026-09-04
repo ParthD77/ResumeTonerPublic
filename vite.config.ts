@@ -5,9 +5,12 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // Electron loads desktop.html through file://, so its production assets must
+  // be relative to that file instead of rooted at /assets.
+  base: mode === "desktop" ? "./" : "/",
   plugins: [react()],
-  test: {exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**']},
+  test: { exclude: ["tests/e2e/**", "node_modules/**", "dist/**"] },
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -17,6 +20,7 @@ export default defineConfig({
         popup: resolve(rootDir, "popup.html"),
         app: resolve(rootDir, "app.html"),
         options: resolve(rootDir, "options.html"),
+        desktop: resolve(rootDir, "desktop.html"),
         serviceWorker: resolve(rootDir, "src/service-worker.ts"),
       },
       output: {
@@ -29,4 +33,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

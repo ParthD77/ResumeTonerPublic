@@ -1,5 +1,8 @@
 node_modules/
 dist/
+desktop-release/
+desktop-release-final/
+desktop-release-*/
 coverage/
 playwright-report/
 test-results/
@@ -10,4 +13,19 @@ test-results/
 *.zip
 .DS_Store
 *.tsbuildinfo
+resume-toner-private-backup*.json
 
+# Private resumes and local application data.
+*.tex
+*.pdf
+*.aux
+*.out
+*.synctex.gz
+*.db
+*.sqlite
+*.sqlite3
+private/
+backups/
+resume-imports/
+# Intentional public fictional fixture.
+!output/pdf/jakes-format-fictional-preview.pdf

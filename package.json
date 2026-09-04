@@ -1,11 +1,17 @@
 {
   "name": "resume-toner",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Local-first resume tailoring tools for reviewed, ATS-friendly exports.",
+  "author": "Parth Dhroovji",
   "private": true,
   "license": "MPL-2.0",
   "type": "module",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "vite",
+    "desktop:dev": "concurrently -k \"vite --mode desktop --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173/desktop.html && electron desktop/main.cjs --dev\"",
+    "desktop:build": "tsc --noEmit && vite build --mode desktop && electron-builder --win nsis",
+    "desktop:preview": "tsc --noEmit && vite build --mode desktop && electron desktop/main.cjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -29,11 +35,35 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "electron": "^44.1.0",
+    "electron-builder": "^26.15.3",
     "fake-indexeddb": "^6.2.2",
     "jsdom": "^26.1.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "com.parthdhroovji.resumetoner.desktop",
+    "productName": "Resume Toner Desktop",
+    "directories": {
+      "output": "desktop-release-1.1.0"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "desktop/preload.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

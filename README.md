@@ -2,6 +2,32 @@
 
 Resume Toner is a local-first Chrome extension for tailoring English technical resumes to a job listing. It captures the active listing, uses your own Gemini API key to create evidence-linked suggestions, lets you review every change, recalculates transparent match scores, and exports an ATS-friendly PDF.
 
+## Windows desktop app
+
+The repository also contains a separate Windows desktop workflow that uses your existing ChatGPT window instead of an API key. Its source of truth is your LaTeX resume: it opens or pastes `.tex`, compiles locally with MiKTeX, creates a strict research-and-tailoring prompt, validates ChatGPT's pasted JSON against exact unique LaTeX snippets, and turns each replacement into an accept/edit/reject card.
+
+- Choose **Current resume** for a job-specific change or **Base + current** to promote an accepted change to the saved base resume when exporting.
+- Synthetic proposals require an explicit truth confirmation before they can be accepted. Confirmed proposals export normally.
+- Eligibility, target profile, research sources, gaps, and synthetic ideas appear in the optional analysis side panel.
+- PDF exports default to `Resume.pdf`; you can choose another filename when saving.
+- You can also save the reviewed source as `Resume.tex`.
+
+Run the development app with `npm run desktop:dev`. Build the Windows installer with `npm run desktop:build`; the installer is written to the versioned `desktop-release-*` directory.
+
+### Desktop saves and review scopes
+
+- The desktop app autosaves your base, active job, pasted response, edits and review decisions locally. Reopening the same app/profile restores your session and recompiles the PDF preview.
+- **This job only** applies an accepted change only to the job-specific resume.
+- **This job + saved base** also updates the saved base after a successful PDF export. Cancelled exports do not change the saved base. The active review retains its original source so changes are not applied twice.
+- **Local saves & history** keeps the newest five snapshots, taken on export, starting a new job, replacing the base, or manually. Restoring a snapshot restores its base and entire review session.
+- Download a private JSON backup before switching between development and the installed app (they use different storage origins), changing computers, or uninstalling. Restore it from **Local saves & history**. You can also export your saved base as `.tex`.
+- Local autosave is not encrypted and is not a cloud backup. Storage failures are reported in the saves panel. Never commit private resume backups or job application data to this public repository.
+- Word-level red/green highlights compare readable wording; the PDF preview remains the authority for layout. Raw LaTeX remains editable under each proposal.
+
+### Publishing the desktop release
+
+Run `npm test` and `npm run desktop:build`. Upload the generated Windows installer to a GitHub Release, not to Git source control. The app requires a separate MiKTeX installation with `pdflatex` on PATH. The installer is unsigned, so Windows may show a publisher warning. Before sharing publicly, smoke-test installation, MiKTeX compilation, PDF export, quitting/reopening, and private-backup restoration on Windows. Only compile trusted LaTeX: disabling shell escape is not a complete sandbox for TeX file access.
+
 There is no Resume Toner account, hosted application backend, telemetry, or shared API key. Structured resume and application data stays in Chrome-managed storage on your device. When you choose **Analyze** or **Compact**, the extension sends your entire resume and full job listing directly to Google Gemini with your key.
 
 ## Quick setup
