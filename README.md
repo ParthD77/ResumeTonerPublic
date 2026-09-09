@@ -2,9 +2,9 @@
 
 Resume Toner is a local-first Chrome extension for tailoring English technical resumes to a job listing. It captures the active listing, uses your own Gemini API key to create evidence-linked suggestions, lets you review every change, recalculates transparent match scores, and exports an ATS-friendly PDF.
 
-## Windows desktop app
+## Windows and macOS desktop app
 
-The repository also contains a separate Windows desktop workflow that uses your existing ChatGPT window instead of an API key. Its source of truth is your LaTeX resume: it opens or pastes `.tex`, compiles locally with MiKTeX, creates a strict research-and-tailoring prompt, validates ChatGPT's pasted JSON against exact unique LaTeX snippets, and turns each replacement into an accept/edit/reject card.
+The repository also contains a desktop workflow for Windows and Apple-silicon Macs that uses your existing ChatGPT window instead of an API key. Its source of truth is your LaTeX resume: it opens or pastes `.tex`, compiles locally with MiKTeX on Windows or MacTeX on macOS, creates a strict research-and-tailoring prompt, validates ChatGPT's pasted JSON against exact unique LaTeX snippets, and turns each replacement into an accept/edit/reject card.
 
 - Choose **Current resume** for a job-specific change or **Base + current** to promote an accepted change to the saved base resume when exporting.
 - Synthetic proposals require an explicit truth confirmation before they can be accepted. Confirmed proposals export normally.
@@ -12,7 +12,7 @@ The repository also contains a separate Windows desktop workflow that uses your 
 - PDF exports default to `Resume.pdf`; you can choose another filename when saving.
 - You can also save the reviewed source as `Resume.tex`.
 
-Run the development app with `npm run desktop:dev`. Build the Windows installer with `npm run desktop:build`; the installer is written to the versioned `desktop-release-*` directory.
+Run the development app with `npm run desktop:dev`. Build the Windows installer with `npm run desktop:build:win`. On an Apple-silicon Mac, build the signed and notarized DMG with `npm run desktop:build:mac`. Release artifacts are written to the versioned `desktop-release-*` directory.
 
 ### Desktop saves and review scopes
 
@@ -24,9 +24,34 @@ Run the development app with `npm run desktop:dev`. Build the Windows installer 
 - Local autosave is not encrypted and is not a cloud backup. Storage failures are reported in the saves panel. Never commit private resume backups or job application data to this public repository.
 - Word-level red/green highlights compare readable wording; the PDF preview remains the authority for layout. Raw LaTeX remains editable under each proposal.
 
-### Publishing the desktop release
+### Desktop prerequisites
 
-Run `npm test` and `npm run desktop:build`. Upload the generated Windows installer to a GitHub Release, not to Git source control. The app requires a separate MiKTeX installation with `pdflatex` on PATH. The installer is unsigned, so Windows may show a publisher warning. Before sharing publicly, smoke-test installation, MiKTeX compilation, PDF export, quitting/reopening, and private-backup restoration on Windows. Only compile trusted LaTeX: disabling shell escape is not a complete sandbox for TeX file access.
+- Windows users install [MiKTeX](https://miktex.org/download) and make `pdflatex` available on `PATH`.
+- Mac users install [MacTeX](https://www.tug.org/mactex/). Resume Toner checks MacTeX's standard `/Library/TeX/texbin` location even when the app is launched from Finder. The Mac build requires Apple silicon and macOS 13 or newer.
+- After installing or updating the TeX distribution, quit and reopen Resume Toner before compiling.
+
+### Publishing the Windows release
+
+Run `npm test` and `npm run desktop:build:win`. Upload the generated Windows installer to a GitHub Release, not to Git source control. The installer is unsigned, so Windows may show a publisher warning. Before sharing publicly, smoke-test installation, MiKTeX compilation, PDF export, quitting/reopening, and private-backup restoration on Windows.
+
+### Publishing the macOS release
+
+The public DMG is built with hardened runtime enabled and must be signed with a `Developer ID Application` certificate and notarized by Apple. Only the publisher needs an Apple Developer account; people installing the notarized DMG do not.
+
+1. Install the Developer ID certificate in the release Mac's Keychain.
+2. Provide notarization credentials using one of electron-builder's supported methods. For App Store Connect API credentials, set `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`. Keep certificates, keys, and credentials outside this repository.
+3. Run `npm test` and `npm run desktop:build:mac`. The build intentionally fails instead of publishing an unsigned app when no signing identity is available.
+4. Verify the app and DMG before upload:
+
+   ```bash
+   codesign --verify --deep --strict --verbose=2 "/Applications/Resume Toner Desktop.app"
+   spctl --assess --type execute --verbose=2 "/Applications/Resume Toner Desktop.app"
+   xcrun stapler validate desktop-release-*/Resume-Toner-Desktop-*-mac-arm64.dmg
+   ```
+
+5. Upload the arm64 DMG to a GitHub Release. Smoke-test drag-to-Applications installation, first launch, MacTeX compilation, PDF and LaTeX exports, Dock reopen behavior, persistence, and private-backup restoration on a clean Apple-silicon Mac.
+
+The first Mac release does not support Intel Macs, the Mac App Store, or automatic updates. On both platforms, only compile trusted LaTeX: disabling shell escape is not a complete sandbox for TeX file access.
 
 There is no Resume Toner account, hosted application backend, telemetry, or shared API key. Structured resume and application data stays in Chrome-managed storage on your device. When you choose **Analyze** or **Compact**, the extension sends your entire resume and full job listing directly to Google Gemini with your key.
 

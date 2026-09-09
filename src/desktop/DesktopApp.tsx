@@ -11,6 +11,10 @@ import {
 } from "./contract";
 
 export function DesktopApp() {
+  const desktopPlatform = window.resumeDesktop?.platform ?? {
+    osLabel: "DESKTOP",
+    latexDistribution: "TeX",
+  };
   const [initial] = useState(() => {
     try { return { archive: readArchive(localStorage), error: "" }; }
     catch { return { archive: { version: 1 as const, session: emptySession(), history: [] }, error: "Saved session could not be read. Export a backup of the stored data before replacing it." }; }
@@ -161,7 +165,7 @@ export function DesktopApp() {
       <main className="shell desktop-setup">
         <header className="topbar">
           <div>
-            <p className="eyebrow">WINDOWS · LOCAL LATEX</p>
+            <p className="eyebrow">{desktopPlatform.osLabel} · LOCAL LATEX</p>
             <h1>Resume Toner Desktop</h1>
           </div>
         </header>
@@ -170,7 +174,7 @@ export function DesktopApp() {
           <h2>Add your base LaTeX resume</h2>
           <p>
             Open a complete `.tex` file or paste its source. The app compiles it
-            locally with MiKTeX.
+            locally with {desktopPlatform.latexDistribution}.
           </p>
           <textarea
             className="prompt latex-source"
@@ -231,7 +235,7 @@ export function DesktopApp() {
           <h1>Resume Toner Desktop</h1>
         </div>
         <div className="top-actions">
-          <span className="cloud-badge">MiKTeX · no API key</span>
+          <span className="cloud-badge">{desktopPlatform.latexDistribution} · no API key</span>
           <button className="secondary" onClick={() => setSideOpen((x) => !x)}>
             {sideOpen ? "Hide" : "Show"} analysis
           </button>
@@ -491,7 +495,7 @@ export function DesktopApp() {
             {preview ? (
               <iframe title="Compiled LaTeX PDF" src={preview} />
             ) : (
-              <div className="preview-empty">Compiling with MiKTeX…</div>
+              <div className="preview-empty">Compiling with {desktopPlatform.latexDistribution}…</div>
             )}
             <button
               disabled={busy || unresolved}

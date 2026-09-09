@@ -3,6 +3,10 @@ export {};
 declare global {
   interface Window {
     resumeDesktop?: {
+      readonly platform: {
+        readonly osLabel: string;
+        readonly latexDistribution: string;
+      };
       openChatGPT(): Promise<void>;
       openLatex(): Promise<string | null>;
       compileLatex(latex: string): Promise<{

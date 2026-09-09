@@ -3,6 +3,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
 const { spawn } = require("node:child_process");
+const {
+  getDesktopPlatform,
+  missingLatexMessage,
+  resolveLatexCompiler,
+} = require("./platform.cjs");
 
 const devUrl = "http://127.0.0.1:5173/desktop.html";
 
@@ -77,6 +82,8 @@ ipcMain.handle("save-latex", async (_event, latex) => {
 ipcMain.handle("compile-latex", async (_event, latex) => {
   if (typeof latex !== "string" || Buffer.byteLength(latex, "utf8") > 500_000)
     return { ok: false, error: "Invalid or oversized LaTeX source.", log: "" };
+  const compiler = await resolveLatexCompiler();
+  if (!compiler) return { ok: false, error: missingLatexMessage(), log: "" };
   const work = await fs.mkdtemp(path.join(os.tmpdir(), "resume-toner-latex-"));
   const source = path.join(work, "resume.tex");
   let log = "";
@@ -85,7 +92,7 @@ ipcMain.handle("compile-latex", async (_event, latex) => {
     for (let pass = 0; pass < 2; pass += 1) {
       const outcome = await new Promise((resolve) => {
         const child = spawn(
-          "pdflatex",
+          compiler,
           [
             "-no-shell-escape",
             "-interaction=nonstopmode",
@@ -113,8 +120,7 @@ ipcMain.handle("compile-latex", async (_event, latex) => {
       if (outcome.code !== 0)
         return {
           ok: false,
-          error:
-            "MiKTeX could not compile this LaTeX. Open the compiler log for the exact line error.",
+          error: `${getDesktopPlatform().latexDistribution} could not compile this LaTeX. Open the compiler log for the exact line error.`,
           log: log.slice(-30_000),
         };
     }
@@ -145,4 +151,6 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
-app.on("window-all-closed", () => app.quit());
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});

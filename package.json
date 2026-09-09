@@ -10,7 +10,9 @@
   "scripts": {
     "dev": "vite",
     "desktop:dev": "concurrently -k \"vite --mode desktop --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173/desktop.html && electron desktop/main.cjs --dev\"",
-    "desktop:build": "tsc --noEmit && vite build --mode desktop && electron-builder --win nsis",
+    "desktop:build": "npm run desktop:build:win",
+    "desktop:build:win": "tsc --noEmit && vite build --mode desktop && electron-builder --win nsis",
+    "desktop:build:mac": "tsc --noEmit && vite build --mode desktop && electron-builder --mac --arm64 -c.forceCodeSigning=true",
     "desktop:preview": "tsc --noEmit && vite build --mode desktop && electron desktop/main.cjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
@@ -50,16 +52,37 @@
     "appId": "com.parthdhroovji.resumetoner.desktop",
     "productName": "Resume Toner Desktop",
     "directories": {
+      "buildResources": "build",
       "output": "desktop-release-1.1.0"
     },
     "files": [
       "dist/**/*",
       "desktop/main.cjs",
+      "desktop/platform.cjs",
       "desktop/preload.cjs",
       "package.json"
     ],
     "win": {
       "target": "nsis"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": "Developer ID Application",
+      "minimumSystemVersion": "13.0",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
+      "artifactName": "Resume-Toner-Desktop-${version}-mac-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
