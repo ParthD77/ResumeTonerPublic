@@ -276,8 +276,12 @@
     grid-template-columns: minmax(260px, 0.6fr) minmax(460px, 1fr);
   }
   .desktop-review.with-analysis .preview-panel {
-    grid-column: 1/-1;
-    position: static;
+    /*
+     * Keep the preview in the right column.  When it spans both columns,
+     * the sticky analysis panel remains over its left edge as the page is
+     * scrolled, obscuring the PDF controls at the end of the review.
+     */
+    grid-column: 2;
   }
   .desktop-review.with-analysis .preview-panel iframe {
     height: 760px;
