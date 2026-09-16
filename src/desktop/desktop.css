@@ -4,6 +4,14 @@
 .local-library { margin: 12px 0 18px; font-size: 13px; }
 .local-library summary { cursor: pointer; font-weight: 700; }
 .local-library .actions { flex-wrap: wrap; }
+.filename-setting {
+  min-width: 230px;
+  margin: 0;
+}
+.filename-setting input {
+  margin-top: 3px;
+  padding-block: 8px;
+}
 .history-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; }
 .local-library { margin: 12px 0 18px; font-size: 13px; }
 .local-library summary { cursor: pointer; font-weight: 700; }

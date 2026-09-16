@@ -10,6 +10,34 @@ const {
 } = require("./platform.cjs");
 
 const devUrl = "http://127.0.0.1:5173/desktop.html";
+const defaultResumeFilename = "Resume.pdf";
+
+function normalizeResumeFilename(value) {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 120);
+  if (!cleaned) return defaultResumeFilename;
+  return cleaned.toLowerCase().endsWith(".pdf") ? cleaned : `${cleaned}.pdf`;
+}
+
+async function readPreferences() {
+  try {
+    const value = JSON.parse(
+      await fs.readFile(path.join(app.getPath("userData"), "preferences.json"), "utf8"),
+    );
+    return { resumeFilename: normalizeResumeFilename(value.resumeFilename) };
+  } catch {
+    return { resumeFilename: defaultResumeFilename };
+  }
+}
+
+async function writePreferences(preferences) {
+  const preferencesPath = path.join(app.getPath("userData"), "preferences.json");
+  await fs.mkdir(path.dirname(preferencesPath), { recursive: true });
+  await fs.writeFile(preferencesPath, JSON.stringify(preferences, null, 2), "utf8");
+}
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -57,6 +85,14 @@ function createWindow() {
 ipcMain.handle("open-chatgpt", () =>
   shell.openExternal("https://chatgpt.com/"),
 );
+ipcMain.handle("get-resume-filename", async () =>
+  (await readPreferences()).resumeFilename,
+);
+ipcMain.handle("set-resume-filename", async (_event, value) => {
+  const resumeFilename = normalizeResumeFilename(value);
+  await writePreferences({ resumeFilename });
+  return resumeFilename;
+});
 ipcMain.handle("open-latex", async () => {
   const result = await dialog.showOpenDialog({
     title: "Open base LaTeX resume",
@@ -134,10 +170,14 @@ ipcMain.handle("compile-latex", async (_event, latex) => {
     await fs.rm(work, { recursive: true, force: true }).catch(() => undefined);
   }
 });
-ipcMain.handle("save-resume", async (_event, bytes) => {
+ipcMain.handle("save-resume", async (_event, bytes, requestedFilename) => {
+  const preferences = await readPreferences();
+  const resumeFilename = normalizeResumeFilename(
+    requestedFilename || preferences.resumeFilename,
+  );
   const result = await dialog.showSaveDialog({
     title: "Save tailored resume",
-    defaultPath: path.join(app.getPath("downloads"), "Resume.pdf"),
+    defaultPath: path.join(app.getPath("downloads"), resumeFilename),
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   if (result.canceled || !result.filePath) return null;

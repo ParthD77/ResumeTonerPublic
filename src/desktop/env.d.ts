@@ -16,7 +16,12 @@ declare global {
         log: string;
       }>;
       saveLatex(latex: string): Promise<string | null>;
-      saveResume(bytes: ArrayBuffer | Uint8Array): Promise<string | null>;
+      getResumeFilename(): Promise<string>;
+      setResumeFilename(filename: string): Promise<string>;
+      saveResume(
+        bytes: ArrayBuffer | Uint8Array,
+        filename?: string,
+      ): Promise<string | null>;
     };
   }
 }

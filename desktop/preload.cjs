@@ -11,5 +11,9 @@ contextBridge.exposeInMainWorld("resumeDesktop", {
   openLatex: () => ipcRenderer.invoke("open-latex"),
   compileLatex: (latex) => ipcRenderer.invoke("compile-latex", latex),
   saveLatex: (latex) => ipcRenderer.invoke("save-latex", latex),
-  saveResume: (bytes) => ipcRenderer.invoke("save-resume", bytes),
+  getResumeFilename: () => ipcRenderer.invoke("get-resume-filename"),
+  setResumeFilename: (filename) =>
+    ipcRenderer.invoke("set-resume-filename", filename),
+  saveResume: (bytes, filename) =>
+    ipcRenderer.invoke("save-resume", bytes, filename),
 });

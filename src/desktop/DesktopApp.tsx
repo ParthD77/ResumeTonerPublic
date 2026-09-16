@@ -34,6 +34,11 @@ export function DesktopApp() {
   const [preview, setPreview] = useState("");
   const [compileLog, setCompileLog] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resumeFilename, setResumeFilename] = useState("Resume.pdf");
+
+  useEffect(() => {
+    void window.resumeDesktop?.getResumeFilename().then(setResumeFilename);
+  }, []);
 
   const session = useMemo<Session>(() => ({ savedBase, base, latexInput, job, responseText, result, reviews, sideOpen }), [savedBase, base, latexInput, job, responseText, result, reviews, sideOpen]);
   useEffect(() => {
@@ -63,6 +68,21 @@ export function DesktopApp() {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }}>Download private backup</button>
         <button className="secondary" disabled={!savedBase} onClick={() => void guard(async () => { await window.resumeDesktop?.saveLatex(savedBase); })}>Export saved base .tex</button>
+        <label className="filename-setting">
+          Export PDF name
+          <input
+            value={resumeFilename}
+            onChange={(event) => setResumeFilename(event.target.value)}
+            onBlur={() =>
+              void guard(async () => {
+                const saved = await window.resumeDesktop?.setResumeFilename(
+                  resumeFilename,
+                );
+                if (saved) setResumeFilename(saved);
+              })
+            }
+          />
+        </label>
         <label>Restore backup <input type="file" accept=".json" onChange={e => {
           const file = e.target.files?.[0]; e.target.value = "";
           if (!file) return;
@@ -503,7 +523,10 @@ export function DesktopApp() {
                 void guard(async () => {
                   const pdf = await compile(current);
                   if (!window.resumeDesktop) return;
-                  const path = await window.resumeDesktop.saveResume(pdf);
+                  const path = await window.resumeDesktop.saveResume(
+                    pdf,
+                    resumeFilename,
+                  );
                   if (path) {
                     checkpoint(result.company + " · " + result.role + " (exported)");
                     setSavedBase(baseAfterReview);
