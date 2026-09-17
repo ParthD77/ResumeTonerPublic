@@ -203,6 +203,16 @@
   font-size: 15px;
   line-height: 1.65;
 }
+.wording-edit {
+  min-height: 1.65em;
+  cursor: text;
+  border-radius: 4px;
+}
+.wording-edit:focus {
+  box-shadow: 0 0 0 3px rgba(57, 115, 77, 0.16);
+  outline: 1px solid #39734d;
+  outline-offset: 4px;
+}
 .source-editor {
   margin: 0 0 16px;
 }

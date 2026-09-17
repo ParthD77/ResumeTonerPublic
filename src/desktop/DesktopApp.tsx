@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ResumeComparison } from "./ResumeComparison";
+import { editReadableLatex } from "./editable-latex";
 import { ArchiveSchema, SESSION_KEY, addSnapshot, emptySession, readArchive, type Archive, type Review, type Session } from "./session";
 import {
   applyLatexChanges,
@@ -425,7 +426,17 @@ export function DesktopApp() {
                     </span>
                     <mark>{p.factuality}</mark>
                   </div>
-                  <ResumeComparison before={p.currentLatex} after={review.text} />
+                  <ResumeComparison
+                    before={p.currentLatex}
+                    after={review.text}
+                    disabled={review.decision === "rejected"}
+                    onAfterChange={(wording) =>
+                      setReview(p.id, {
+                        text: editReadableLatex(review.text, wording),
+                        decision: "pending",
+                      })
+                    }
+                  />
                   <details className="source-editor">
                     <summary>View / edit LaTeX source</summary>
                     <p className="muted">Text preview above; the compiled PDF shows exact formatting.</p>

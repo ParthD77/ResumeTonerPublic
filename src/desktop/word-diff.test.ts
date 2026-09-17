@@ -31,6 +31,16 @@ describe("resume wording diff", () => {
     expect(html).toContain('<ins class="diff-added">Tested</ins>');
     expect(html).not.toContain("resumeItem");
   });
+  it("keeps the highlighted proposed wording when inline editing is enabled", () => {
+    const html = renderToStaticMarkup(createElement(ResumeComparison, {
+      before: String.raw`\resumeItem{Built APIs}`,
+      after: String.raw`\resumeItem{Tested APIs}`,
+      onAfterChange: () => undefined,
+    }));
+    expect(html).toContain('contentEditable="true"');
+    expect(html).toContain('<ins class="diff-added">Tested</ins>');
+    expect(html).not.toContain("textarea");
+  });
   it("explains formatting-only changes", () => {
     const html = renderToStaticMarkup(createElement(ResumeComparison, {
       before: String.raw`\textbf{APIs}`, after: String.raw`\textit{APIs}`,
