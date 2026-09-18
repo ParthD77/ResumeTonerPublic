@@ -14,6 +14,8 @@ The repository also contains a desktop workflow for Windows and Apple-silicon Ma
 
 Run the development app with `npm run desktop:dev`. Build the Windows installer with `npm run desktop:build:win`. On an Apple-silicon Mac, build the signed and notarized DMG with `npm run desktop:build:mac`. Release artifacts are written to the versioned `desktop-release-*` directory.
 
+The desktop ChatGPT prompt is a plain-text template at `src/desktop/tailoring-prompt.txt`. Edit its instructions directly, while keeping the `{{RESPONSE_CONTRACT}}`, `{{LATEX}}`, and `{{JOB_POSTING}}` placeholders intact, then rebuild or restart the development app.
+
 ### Desktop saves and review scopes
 
 - The desktop app autosaves your base, active job, pasted response, edits and review decisions locally. Reopening the same app/profile restores your session and recompiles the PDF preview.

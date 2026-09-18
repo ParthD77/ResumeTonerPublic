@@ -109,9 +109,24 @@ describe("desktop LaTeX ChatGPT contract", () => {
         "A detailed software engineering posting with APIs and testing.",
       ),
     ).toContain(latex);
-    expect(buildChatPrompt(latex, "A sufficiently detailed job posting.")).toContain(
-      "Never use citation placeholders",
+    expect(
+      buildChatPrompt(latex, "A sufficiently detailed job posting."),
+    ).toContain("Never use citation placeholders");
+    expect(buildChatPrompt(latex, "  Trim this posting.  ")).toContain(
+      "JOB POSTING:\nTrim this posting.",
     );
+    expect(
+      buildChatPrompt(latex, "A sufficiently detailed job posting."),
+    ).not.toMatch(/\{\{(?:RESPONSE_CONTRACT|LATEX|JOB_POSTING)\}\}/);
+    expect(
+      buildChatPrompt(
+        latex.replace(
+          "\\begin{document}",
+          "\\begin{document}\n{{JOB_POSTING}}",
+        ),
+        "The actual posting",
+      ),
+    ).toContain("\\begin{document}\n{{JOB_POSTING}}");
   });
   it("rejects an unrendered placeholder template", () => {
     expect(() =>
